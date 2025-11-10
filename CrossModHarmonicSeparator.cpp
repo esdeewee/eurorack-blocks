@@ -3,6 +3,8 @@
 #include "CrossModHarmonicSeparator.h"
 
 #include <cstddef>
+#include <array>
+#include <algorithm>
 
 
 
@@ -30,6 +32,11 @@ void  CrossModHarmonicSeparator::init ()
    energy_prime = 0.0f;
    energy_composite = 0.0f;
    reconstruction_error = 0.0f;
+   const std::size_t analysis_size = spectral_separator.analysisSize();
+   fundamental_overlap.assign(analysis_size, 0.0f);
+   prime_overlap.assign(analysis_size, 0.0f);
+   composite_overlap.assign(analysis_size, 0.0f);
+   normalization_overlap.assign(analysis_size, 0.0f);
 }
 
 
@@ -81,12 +88,33 @@ void  CrossModHarmonicSeparator::process ()
       if (spectral_separator.processBuffer(input_block.data(), erb_BUFFER_SIZE) && spectral_separator.hasResult())
       {
          has_spectral_separation = true;
-         fundamental_time.assign(spectral_separator.fundamentalTimeDomain().begin(),
-                                 spectral_separator.fundamentalTimeDomain().end());
-         prime_time.assign(spectral_separator.primeTimeDomain().begin(),
-                           spectral_separator.primeTimeDomain().end());
-         composite_time.assign(spectral_separator.compositeTimeDomain().begin(),
-                               spectral_separator.compositeTimeDomain().end());
+         const auto& fundamental_domain = spectral_separator.fundamentalTimeDomain();
+         const auto& prime_domain = spectral_separator.primeTimeDomain();
+         const auto& composite_domain = spectral_separator.compositeTimeDomain();
+
+         fundamental_time.assign(fundamental_domain.begin(), fundamental_domain.end());
+         prime_time.assign(prime_domain.begin(), prime_domain.end());
+         composite_time.assign(composite_domain.begin(), composite_domain.end());
+
+         const auto& window = spectral_separator.window();
+         const std::size_t analysis_size = spectral_separator.analysisSize();
+         if (fundamental_overlap.size() != analysis_size)
+         {
+            fundamental_overlap.assign(analysis_size, 0.0f);
+            prime_overlap.assign(analysis_size, 0.0f);
+            composite_overlap.assign(analysis_size, 0.0f);
+            normalization_overlap.assign(analysis_size, 0.0f);
+         }
+
+         for (std::size_t n = 0; n < analysis_size; ++n)
+         {
+            const float win = window[n];
+            fundamental_overlap[n] += fundamental_domain[n] * win;
+            prime_overlap[n] += prime_domain[n] * win;
+            composite_overlap[n] += composite_domain[n] * win;
+            normalization_overlap[n] += win * win;
+         }
+
          energy_total = spectral_separator.totalEnergy();
          energy_fundamental = spectral_separator.fundamentalEnergy();
          energy_prime = spectral_separator.primeEnergy();
@@ -115,5 +143,43 @@ void  CrossModHarmonicSeparator::process ()
       energy_prime = 0.0f;
       energy_composite = 0.0f;
       reconstruction_error = 0.0f;
+      std::fill(fundamental_overlap.begin(), fundamental_overlap.end(), 0.0f);
+      std::fill(prime_overlap.begin(), prime_overlap.end(), 0.0f);
+      std::fill(composite_overlap.begin(), composite_overlap.end(), 0.0f);
+      std::fill(normalization_overlap.begin(), normalization_overlap.end(), 0.0f);
    }
+
+   const std::size_t hop = std::min<std::size_t>(spectral_separator.hopSize(), erb_BUFFER_SIZE);
+   for (std::size_t i = 0 ; i < hop ; ++i)
+   {
+      const float norm = (i < normalization_overlap.size() && normalization_overlap[i] > 1e-6f) ? normalization_overlap[i] : 1.0f;
+      ui.fundamental_debug [i] = (i < fundamental_overlap.size()) ? fundamental_overlap[i] / norm : 0.0f;
+      ui.prime_debug [i] = (i < prime_overlap.size()) ? prime_overlap[i] / norm : 0.0f;
+      ui.composite_debug [i] = (i < composite_overlap.size()) ? composite_overlap[i] / norm : 0.0f;
+   }
+   for (std::size_t i = hop ; i < erb_BUFFER_SIZE ; ++i)
+   {
+      ui.fundamental_debug [i] = 0.0f;
+      ui.prime_debug [i] = 0.0f;
+      ui.composite_debug [i] = 0.0f;
+   }
+
+   auto shiftBuffer = [hop](std::vector<float>& buffer) {
+      if (buffer.empty())
+      {
+         return;
+      }
+      if (hop >= buffer.size())
+      {
+         std::fill(buffer.begin(), buffer.end(), 0.0f);
+         return;
+      }
+      std::move(buffer.begin() + hop, buffer.end(), buffer.begin());
+      std::fill(buffer.end() - hop, buffer.end(), 0.0f);
+   };
+
+   shiftBuffer(fundamental_overlap);
+   shiftBuffer(prime_overlap);
+   shiftBuffer(composite_overlap);
+   shiftBuffer(normalization_overlap);
 }

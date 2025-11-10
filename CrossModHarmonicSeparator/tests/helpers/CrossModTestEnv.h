@@ -10,6 +10,9 @@ struct CrossModHarmonicSeparatorUi
 {
     std::array<float, erb_BUFFER_SIZE> audio_in {};
     std::array<float, erb_BUFFER_SIZE> audio_out {};
+    std::array<float, erb_BUFFER_SIZE> fundamental_debug {};
+    std::array<float, erb_BUFFER_SIZE> prime_debug {};
+    std::array<float, erb_BUFFER_SIZE> composite_debug {};
 };
 
 namespace erb

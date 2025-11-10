@@ -217,27 +217,57 @@ EVIDENCE: Integration test comparing original vs reconstructed buffers
 
 > After the automated test suite is green, run this VCV checklist before unlocking Phase 3. It gives final confidence that the simulator matches expectations end-to-end.
 
+**Before you start**
+- Rebuild the plugin: `python build-system/scripts/erbb build simulator`.
+- In VCV Rack, load a new empty patch and add the following helpers:
+  - `Fundamental VCO` ×2 (or any basic oscillator)
+  - `WT LFO` or similar as a quick modulation source (optional)
+  - `VCA MIX` (4-channel mixer) or `Mix4`
+  - `Scope` (for time-domain view)
+  - `Spectra` or `Audible Instruments FFT` (for spectrum view)
+  - `Audio-8` (audio interface to your speakers/headphones)
+  - Our module `CrossModHarmonicSeparator`
+- Connect `Audio-8` output 1→2 as usual so you can hear the result.
+- Keep the Scope set to DC coupling, 5 ms/div, and normal amplitude gain to make “flat vs wiggly” differences obvious.
+
 1. **Simulator bring-up**
-   - Rebuild the VCV plugin (`python build-system/scripts/erbb build simulator`).
-   - Load the module in VCV Rack, patch stereo in/out, and set up a scope plus spectrum analyzer.
+   - Patch `VCO 1` sine into `CrossModHarmonicSeparator IN`.
+   - Patch `CrossModHarmonicSeparator OUT` to a free channel on `VCA MIX`, then route that to `Audio-8` output 1 (so you can hear it) and to the `Scope`.
+   - Patch the same output into the spectrum analyzer. Leave the analyzer on “Log amplitude” so harmonics are easy to see.
+   - Confirm you hear a clean sine and no clicks/pops when toggling the module’s bypass (if you wired a bypass switch) or when reconnecting the cable.
 
 2. **Pitch & harmonic sanity**
-   - Feed a 440 Hz sine: confirm the UI/debug readouts show a stable fundamental with negligible harmonic bleed.
-   - Switch to a 200 Hz sawtooth: prime/composite meters should respond as the automated energy tests predict.
-   - Inject 440 Hz + 660 Hz: the detector should lock to ~220 Hz (dominant fundamental) and masks follow suit.
+   1. **Single-tone check (440 Hz)**
+      - Set VCO 1 frequency to 440 Hz (A4). In Fundamental VCO, that’s “NOTE A4” or “Frequency 440”.
+      - Expectation: the Pitch readout (or debug log if you have it spitting to the console) stays within ±1 Hz of 440. On the spectrum analyzer you should see one tall spike at 440 Hz.
+   2. **Rich-harmonic check (200 Hz saw)**
+      - Change VCO 1 waveform to sawtooth at 200 Hz (set frequency knob to 200 Hz, waveform selector to saw).
+      - Expectation: the detector still reports ~200 Hz. On the analyzer, primes (400 Hz, 600 Hz, …) should light up in the “prime” meter/debug output, composites (800 Hz, 1000 Hz, …) in the composite path, consistent with the automated energy tests.
+   3. **Two-tone fundamental test (440 Hz + 660 Hz)**
+      - Patch VCO 1 sine at 440 Hz into mixer channel 1.
+      - Patch VCO 2 sine at 660 Hz into mixer channel 2.
+      - Mix both signals together (set both channel gains to unity, output to our module input).
+      - Expectation: Even though neither oscillator is running at 220 Hz, the detector should report ≈220 Hz. That happens because 440 and 660 share a common divisor (Greatest Common Divisor) of 220; it’s the true repeating period of the combined signal. On the analyzer, you’ll see peaks at 220 Hz, 440 Hz, 660 Hz, 880 Hz, etc. Our “fundamental” bucket should capture the 220 Hz bin, “prime” bucket should grab bins whose harmonic number is prime (2→440 Hz, 3→660 Hz, 5→1100 Hz…), and “composite” bucket the rest.
 
-3. **Spectral separation**
-   - Inspect the per-group time-domain taps (temporary debug outputs): their sum should closely match the original waveform.
-   - Any reconstruction/error indicator should stay below ~0.7 RMS (same tolerance as the automated reconstruction test).
-   - Toggle bypass/engage with audio running; there must be no pops or sudden gain jumps.
+3. **Spectral separation (do de drie deel-signalen samen het origineel vormen?)**
+   - *Waarom we dit doen:* onze code splitst het inkomende signaal in drie tijdreeksen (fundamental / primes / composites). Als we die drie weer bij elkaar optellen, moet je praktisch hetzelfde krijgen als het originele signaal. Dat bewijst dat de scheiding geen gekke gaten achterlaat.
+   - *Wat je nodig hebt:* een mixer met minstens 4 kanalen (bv. `VCA MIX`), het `Scope`, en de drie debug-uitgangen `FUND`, `PRIME`, `COMP` die op het frontpaneel staan.
+   - *Stap-voor-stap:*
+     1. Patch de drie debug-uitgangen van `CrossModHarmonicSeparator` naar kanaal 1/2/3 van `VCA MIX`. Zet de kanaal- en mastergain van de mixer allemaal op 0 dB (unity).
+     2. Patch de mixer-uitgang naar een **tweede** ingang van het Scope (bijvoorbeeld Scope Channel 2). Patch ook het originele ingangssignaal van de module naar Scope Channel 1.
+     3. Zet het Scope op dubbele weergave (Channel 1 & 2 tegelijk). Channel 1 = origineel, Channel 2 = som van de drie deel-signalen. De golfvormen moeten vrijwel perfect over elkaar liggen; een klein verschil door venstering is oké.
+     4. Laat één voor één (mute-knop of kabel eruit) een van de drie debug-kanalen wegvallen. Je hoort en ziet dan welk deel van het geluid ze bevatten – handig om te checken of fundamental/prime/composite logisch klinken.
+   - *Reconstruction error check:* in de module hebben we een variabele `reconstruction_error` (wordt gelogd in de console wanneer je de simulator start). Tijdens deze test moet die onder 0.7 blijven. Zie je hogere waarden? Noteer het inkomende signaal en meld het voordat we verder gaan.
+   - *Pop-test:* terwijl audio speelt, trek de kabel uit de module-ingang en steek hem terug, of toggle een eventuele bypass-schakelaar. Je mag geen klik of volume-sprong horen. Zo wel, dan eerst oplossen voordat we naar Phase 3 gaan.
 
 4. **Edge-case sweep**
-   - Drop input to silence: outputs settle to zero with no residual noise.
-   - Sweep 50 Hz → 2 kHz: pitch tracking remains continuous, harmonic grouping stable.
-   - Add −60 dB noise to a tone: energy distribution remains within the limits asserted in the noise injection test.
+   - Silence: Turn both VCO levels down to zero or unplug them. All outputs of the module should drop to silence; spectrum should show only noise floor. Detector may hold the last pitch briefly but must not fabricate wild values.
+   - Frequency sweep: Slowly turn VCO 1 frequency from ~50 Hz up to 2 kHz over ~10 seconds. Watch that detected pitch slides smoothly without stepping, and that prime/composite energy indicators don’t flicker erratically.
+   - Noise injection: With VCO 1 at 200 Hz sine, use `WT LFO` (or `Noise` module) at very low level (≈−60 dB) into the mixer along with the sine. The prime/composite energy ratios should remain near their clean-signal values (within the ±0.02 tolerance enforced in our automated noise test).
 
 5. **Sign-off**
-   - Record any anomalies; only advance to Phase 3 when every checklist item passes cleanly.
+   - Write down any anomalies (e.g., pitch jump, audible pop, misrouted harmonic energy).
+   - Only proceed to Phase 3 when every bullet above behaves exactly as described.
 
 ---
 

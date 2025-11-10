@@ -5,7 +5,7 @@ module CrossModHarmonicSeparator {
    width 12hp
 
    // The back board to use
-   board kivu12
+   board default
 
    // The front panel material
    material aluminum
@@ -25,6 +25,21 @@ module CrossModHarmonicSeparator {
    control audio_out AudioOut {
       position 6hp, 111mm
       label "OUT"
+   }
+
+   control fundamental_debug AudioOut {
+      position 3hp, 125mm
+      label "FUND"
+   }
+
+   control prime_debug AudioOut {
+      position 6hp, 125mm
+      label "PRIME"
+   }
+
+   control composite_debug AudioOut {
+      position 9hp, 125mm
+      label "COMP"
    }
 
    // Available controls and styles are documented here:

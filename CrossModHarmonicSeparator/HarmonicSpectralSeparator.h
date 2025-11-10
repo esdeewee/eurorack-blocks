@@ -39,6 +39,9 @@ public:
     float primeEnergy() const;
     float compositeEnergy() const;
     float reconstructionError() const;
+    std::size_t analysisSize() const;
+    std::size_t hopSize() const;
+    const std::vector<float>& window() const;
 
 private:
     void ensureWindow();

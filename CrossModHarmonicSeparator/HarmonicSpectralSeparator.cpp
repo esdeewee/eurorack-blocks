@@ -178,8 +178,9 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
     has_result_ = true;
 
     if (accumulator_.size() >= analysis_size_) {
-        if (accumulator_.size() > analysis_size_) {
-            accumulator_.erase(accumulator_.begin(), accumulator_.end() - analysis_size_ + hop_size_);
+        const std::size_t keep = (analysis_size_ > hop_size_) ? (analysis_size_ - hop_size_) : 0;
+        if (keep > 0 && accumulator_.size() >= keep) {
+            accumulator_.erase(accumulator_.begin(), accumulator_.end() - keep);
         } else {
             accumulator_.clear();
         }
@@ -298,6 +299,21 @@ void HarmonicSpectralSeparator::computeInverse(const std::vector<std::complex<fl
     for (std::size_t n = 0; n < analysis_size_; ++n) {
         destination[n] = norm * inverse_output_[n].r;
     }
+}
+
+std::size_t HarmonicSpectralSeparator::analysisSize() const
+{
+    return analysis_size_;
+}
+
+std::size_t HarmonicSpectralSeparator::hopSize() const
+{
+    return hop_size_;
+}
+
+const std::vector<float>& HarmonicSpectralSeparator::window() const
+{
+    return window_;
 }
 
 void HarmonicSpectralSeparator::allocateFft()

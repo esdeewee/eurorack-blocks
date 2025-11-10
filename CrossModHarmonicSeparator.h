@@ -53,4 +53,8 @@ struct CrossModHarmonicSeparator
    float energy_prime = 0.0f;
    float energy_composite = 0.0f;
    float reconstruction_error = 0.0f;
+   std::vector<float> fundamental_overlap;
+   std::vector<float> prime_overlap;
+   std::vector<float> composite_overlap;
+   std::vector<float> normalization_overlap;
 };
