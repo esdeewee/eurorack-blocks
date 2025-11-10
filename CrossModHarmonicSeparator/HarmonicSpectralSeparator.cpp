@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <stdexcept>
 
 namespace
 {
@@ -22,6 +24,8 @@ HarmonicSpectralSeparator::HarmonicSpectralSeparator(float sampleRate,
     , prime_energy_(0.0f)
     , composite_energy_(0.0f)
     , reconstruction_error_(0.0f)
+    , forward_fft_(nullptr)
+    , inverse_fft_(nullptr)
 {
     windowed_input_.resize(analysis_size_, 0.0f);
     spectrum_.resize(analysis_size_);
@@ -33,6 +37,16 @@ HarmonicSpectralSeparator::HarmonicSpectralSeparator(float sampleRate,
     composite_time_domain_.resize(analysis_size_, 0.0f);
     ensureWindow();
     accumulator_.reserve(analysis_size_ * 2);
+    allocateFft();
+    fft_input_.resize(analysis_size_);
+    fft_output_.resize(analysis_size_);
+    inverse_input_.resize(analysis_size_);
+    inverse_output_.resize(analysis_size_);
+}
+
+HarmonicSpectralSeparator::~HarmonicSpectralSeparator()
+{
+    releaseFft();
 }
 
 void HarmonicSpectralSeparator::reset()
@@ -88,6 +102,8 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
     const float* windowStart = accumulator_.data() + (accumulator_.size() - analysis_size_);
     for (std::size_t n = 0; n < analysis_size_; ++n) {
         windowed_input_[n] = windowStart[n] * window_[n];
+        fft_input_[n].r = windowed_input_[n];
+        fft_input_[n].i = 0.0f;
     }
 
     total_energy_ = 0.0f;
@@ -95,16 +111,9 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
         total_energy_ += sample * sample;
     }
 
-    const float normFactor = -2.0f * kPi / static_cast<float>(analysis_size_);
+    kiss_fft(forward_fft_, fft_input_.data(), fft_output_.data());
     for (std::size_t k = 0; k < analysis_size_; ++k) {
-        std::complex<float> sum {0.0f, 0.0f};
-        for (std::size_t n = 0; n < analysis_size_; ++n) {
-            const float angle = normFactor * static_cast<float>(k) * static_cast<float>(n);
-            const float cosVal = std::cos(angle);
-            const float sinVal = std::sin(angle);
-            sum += std::complex<float> { windowed_input_[n] * cosVal, windowed_input_[n] * sinVal };
-        }
-        spectrum_[k] = sum;
+        spectrum_[k] = std::complex<float>(fft_output_[k].r, fft_output_[k].i);
     }
 
     clearSpectra();
@@ -273,19 +282,44 @@ void HarmonicSpectralSeparator::assignBin(std::size_t bin, std::vector<std::comp
 void HarmonicSpectralSeparator::computeInverse(const std::vector<std::complex<float>>& spectrum,
                                                std::vector<float>& destination)
 {
-    const float norm = 1.0f / static_cast<float>(analysis_size_);
-    const float angleFactor = 2.0f * kPi / static_cast<float>(analysis_size_);
+    if (!inverse_fft_) {
+        std::fill(destination.begin(), destination.end(), 0.0f);
+        return;
+    }
 
+    for (std::size_t k = 0; k < analysis_size_; ++k) {
+        inverse_input_[k].r = spectrum[k].real();
+        inverse_input_[k].i = spectrum[k].imag();
+    }
+
+    kiss_fft(inverse_fft_, inverse_input_.data(), inverse_output_.data());
+
+    const float norm = 1.0f / static_cast<float>(analysis_size_);
     for (std::size_t n = 0; n < analysis_size_; ++n) {
-        std::complex<float> sum {0.0f, 0.0f};
-        for (std::size_t k = 0; k < analysis_size_; ++k) {
-            const float angle = angleFactor * static_cast<float>(k) * static_cast<float>(n);
-            const float cosVal = std::cos(angle);
-            const float sinVal = std::sin(angle);
-            const std::complex<float> basis { cosVal, sinVal };
-            sum += spectrum[k] * basis;
-        }
-        destination[n] = norm * sum.real();
+        destination[n] = norm * inverse_output_[n].r;
+    }
+}
+
+void HarmonicSpectralSeparator::allocateFft()
+{
+    releaseFft();
+    forward_fft_ = kiss_fft_alloc(static_cast<int>(analysis_size_), 0, nullptr, nullptr);
+    inverse_fft_ = kiss_fft_alloc(static_cast<int>(analysis_size_), 1, nullptr, nullptr);
+    if (!forward_fft_ || !inverse_fft_) {
+        releaseFft();
+        throw std::runtime_error("Failed to allocate kissfft configuration");
+    }
+}
+
+void HarmonicSpectralSeparator::releaseFft()
+{
+    if (forward_fft_) {
+        free(forward_fft_);
+        forward_fft_ = nullptr;
+    }
+    if (inverse_fft_) {
+        free(inverse_fft_);
+        inverse_fft_ = nullptr;
     }
 }
 

@@ -38,12 +38,16 @@ void  CrossModHarmonicSeparator::process ()
    // This function is called regularly every buffer size
    // get your audio input(s) if any, and write to your audio output(s)
 
+   std::array<float, erb_BUFFER_SIZE> input_block {};
+
    for (std::size_t i = 0 ; i < erb_BUFFER_SIZE ; ++i)
    {
-      ui.audio_out [i] = ui.audio_in [i];
+      const float sample = ui.audio_in [i];
+      ui.audio_out [i] = sample;
+      input_block [i] = sample;
    }
 
-   pitch_detector.processBuffer(ui.audio_in.data(), erb_BUFFER_SIZE);
+   pitch_detector.processBuffer(input_block.data(), erb_BUFFER_SIZE);
    has_detected_pitch = pitch_detector.hasPitch();
 
    if (has_detected_pitch)
@@ -74,7 +78,7 @@ void  CrossModHarmonicSeparator::process ()
       composite_numbers.assign(compositeNums.begin(), compositeNums.end());
 
       spectral_separator.setHarmonicData(detected_pitch_hz, prime_numbers, composite_numbers);
-      if (spectral_separator.processBuffer(ui.audio_in.data(), erb_BUFFER_SIZE) && spectral_separator.hasResult())
+      if (spectral_separator.processBuffer(input_block.data(), erb_BUFFER_SIZE) && spectral_separator.hasResult())
       {
          has_spectral_separation = true;
          fundamental_time.assign(spectral_separator.fundamentalTimeDomain().begin(),

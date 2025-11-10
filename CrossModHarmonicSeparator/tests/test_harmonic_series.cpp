@@ -6,8 +6,8 @@
 #include <random>
 #include <vector>
 
-#include "HarmonicSeriesGenerator.h"
-#include "HarmonicSpectralSeparator.h"
+#include "CrossModHarmonicSeparator/HarmonicSeriesGenerator.h"
+#include "CrossModHarmonicSeparator/HarmonicSpectralSeparator.h"
 #include "helpers/TestSignalGenerators.h"
 #include "helpers/DSPTestUtils.h"
 

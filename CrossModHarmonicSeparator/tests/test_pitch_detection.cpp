@@ -6,7 +6,7 @@
 #include <cmath>
 #include <vector>
 
-#include "PitchDetector.h"
+#include "CrossModHarmonicSeparator/PitchDetector.h"
 #include "helpers/TestSignalGenerators.h"
 
 namespace

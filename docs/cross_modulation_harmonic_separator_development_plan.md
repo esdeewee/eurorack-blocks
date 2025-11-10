@@ -213,6 +213,34 @@ EVIDENCE: Integration test comparing original vs reconstructed buffers
 
 ---
 
+### Phase 2 Manual Verification (VCV Rack)
+
+> After the automated test suite is green, run this VCV checklist before unlocking Phase 3. It gives final confidence that the simulator matches expectations end-to-end.
+
+1. **Simulator bring-up**
+   - Rebuild the VCV plugin (`python build-system/scripts/erbb build simulator`).
+   - Load the module in VCV Rack, patch stereo in/out, and set up a scope plus spectrum analyzer.
+
+2. **Pitch & harmonic sanity**
+   - Feed a 440 Hz sine: confirm the UI/debug readouts show a stable fundamental with negligible harmonic bleed.
+   - Switch to a 200 Hz sawtooth: prime/composite meters should respond as the automated energy tests predict.
+   - Inject 440 Hz + 660 Hz: the detector should lock to ~220 Hz (dominant fundamental) and masks follow suit.
+
+3. **Spectral separation**
+   - Inspect the per-group time-domain taps (temporary debug outputs): their sum should closely match the original waveform.
+   - Any reconstruction/error indicator should stay below ~0.7 RMS (same tolerance as the automated reconstruction test).
+   - Toggle bypass/engage with audio running; there must be no pops or sudden gain jumps.
+
+4. **Edge-case sweep**
+   - Drop input to silence: outputs settle to zero with no residual noise.
+   - Sweep 50 Hz → 2 kHz: pitch tracking remains continuous, harmonic grouping stable.
+   - Add −60 dB noise to a tone: energy distribution remains within the limits asserted in the noise injection test.
+
+5. **Sign-off**
+   - Record any anomalies; only advance to Phase 3 when every checklist item passes cleanly.
+
+---
+
 ## Phase 3: Per-Group Processing Chains
 
 > **Library integration note:** Before starting Phase 3 implementation, add the MIT-licensed [SoundPipe](https://github.com/PaulBatchelor/Soundpipe) DSP library (e.g. as a git submodule or vendored dependency). We will rely on its filters, saturation, delays, and envelope utilities for the fundamental/prime/composite chains in subsequent phases (software simulator, tests, and Daisy hardware).

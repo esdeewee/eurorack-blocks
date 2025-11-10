@@ -12,9 +12,9 @@
    #include "erb/erb.h"
 #endif
 
-#include "PitchDetector.h"
-#include "HarmonicSeriesGenerator.h"
-#include "HarmonicSpectralSeparator.h"
+#include "CrossModHarmonicSeparator/PitchDetector.h"
+#include "CrossModHarmonicSeparator/HarmonicSeriesGenerator.h"
+#include "CrossModHarmonicSeparator/HarmonicSpectralSeparator.h"
 
 
 struct CrossModHarmonicSeparator

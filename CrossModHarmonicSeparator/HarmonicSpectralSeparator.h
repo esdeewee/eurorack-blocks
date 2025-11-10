@@ -4,12 +4,20 @@
 #include <cstddef>
 #include <vector>
 
+#include "../submodules/kissfft/kiss_fft.h"
+
 class HarmonicSpectralSeparator
 {
 public:
     HarmonicSpectralSeparator(float sampleRate,
                               std::size_t analysisSize = 1024,
                               std::size_t hopSize = 48);
+    ~HarmonicSpectralSeparator();
+
+    HarmonicSpectralSeparator(const HarmonicSpectralSeparator&) = delete;
+    HarmonicSpectralSeparator& operator=(const HarmonicSpectralSeparator&) = delete;
+    HarmonicSpectralSeparator(HarmonicSpectralSeparator&&) = delete;
+    HarmonicSpectralSeparator& operator=(HarmonicSpectralSeparator&&) = delete;
 
     void reset();
     void setHarmonicData(float fundamentalHz,
@@ -38,6 +46,8 @@ private:
     void assignBin(std::size_t bin, std::vector<std::complex<float>>& target);
     void computeInverse(const std::vector<std::complex<float>>& spectrum,
                         std::vector<float>& destination);
+    void allocateFft();
+    void releaseFft();
 
     float sample_rate_;
     std::size_t analysis_size_;
@@ -62,6 +72,13 @@ private:
     std::vector<float> fundamental_time_domain_;
     std::vector<float> prime_time_domain_;
     std::vector<float> composite_time_domain_;
+
+    kiss_fft_cfg forward_fft_;
+    kiss_fft_cfg inverse_fft_;
+    std::vector<kiss_fft_cpx> fft_input_;
+    std::vector<kiss_fft_cpx> fft_output_;
+    std::vector<kiss_fft_cpx> inverse_input_;
+    std::vector<kiss_fft_cpx> inverse_output_;
 
     float total_energy_;
     float fundamental_energy_;

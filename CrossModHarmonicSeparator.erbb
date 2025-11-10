@@ -7,12 +7,13 @@ module CrossModHarmonicSeparator {
       file "CrossModHarmonicSeparator.cpp"
       file "CrossModHarmonicSeparator.h"
       file "CrossModHarmonicSeparator.erbui"
-      file "HarmonicSpectralSeparator.cpp"
-      file "HarmonicSpectralSeparator.h"
-      file "HarmonicSeriesGenerator.cpp"
-      file "HarmonicSeriesGenerator.h"
-      file "PitchDetector.cpp"
-      file "PitchDetector.h"
+      file "CrossModHarmonicSeparator/HarmonicSpectralSeparator.cpp"
+      file "CrossModHarmonicSeparator/HarmonicSpectralSeparator.h"
+      file "CrossModHarmonicSeparator/HarmonicSeriesGenerator.cpp"
+      file "CrossModHarmonicSeparator/HarmonicSeriesGenerator.h"
+      file "CrossModHarmonicSeparator/PitchDetector.cpp"
+      file "CrossModHarmonicSeparator/PitchDetector.h"
+      file "CrossModHarmonicSeparator/kissfft_wrapper.cpp"
    }
 
    // Put more resources in this list as you add data like audio samples, etc.
