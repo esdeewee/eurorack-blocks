@@ -14,6 +14,7 @@
 
 #include "PitchDetector.h"
 #include "HarmonicSeriesGenerator.h"
+#include "HarmonicSpectralSeparator.h"
 
 
 struct CrossModHarmonicSeparator
@@ -31,6 +32,7 @@ struct CrossModHarmonicSeparator
    // Put here your DSP objects
    PitchDetector             pitch_detector { 48000.0f };
    HarmonicSeriesGenerator   harmonic_series { 48000.0f };
+   HarmonicSpectralSeparator spectral_separator { 48000.0f };
 
    bool   has_detected_pitch = false;
    float  detected_pitch_hz = 0.0f;
@@ -41,4 +43,14 @@ struct CrossModHarmonicSeparator
    std::vector<float> composite_group;
    std::vector<std::size_t> prime_numbers;
    std::vector<std::size_t> composite_numbers;
+
+   bool   has_spectral_separation = false;
+   std::vector<float> fundamental_time;
+   std::vector<float> prime_time;
+   std::vector<float> composite_time;
+   float energy_total = 0.0f;
+   float energy_fundamental = 0.0f;
+   float energy_prime = 0.0f;
+   float energy_composite = 0.0f;
+   float reconstruction_error = 0.0f;
 };

@@ -7,6 +7,8 @@ module CrossModHarmonicSeparator {
       file "CrossModHarmonicSeparator.cpp"
       file "CrossModHarmonicSeparator.h"
       file "CrossModHarmonicSeparator.erbui"
+      file "HarmonicSpectralSeparator.cpp"
+      file "HarmonicSpectralSeparator.h"
       file "HarmonicSeriesGenerator.cpp"
       file "HarmonicSeriesGenerator.h"
       file "PitchDetector.cpp"

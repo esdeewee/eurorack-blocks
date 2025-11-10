@@ -20,6 +20,7 @@ if [[ -f "${VCVARS_BAT}" ]]; then
     WIN_MODULE_ROOT=$(cygpath -w "${MODULE_ROOT}")
     WIN_MODULE_CPP=$(cygpath -w "${MODULE_ROOT}/../CrossModHarmonicSeparator.cpp")
     WIN_HARMONIC_CPP=$(cygpath -w "${MODULE_ROOT}/HarmonicSeriesGenerator.cpp")
+    WIN_SPECTRAL_CPP=$(cygpath -w "${MODULE_ROOT}/HarmonicSpectralSeparator.cpp")
     WIN_PITCH_CPP=$(cygpath -w "${MODULE_ROOT}/PitchDetector.cpp")
     WIN_TEST_SIGNAL=$(cygpath -w "${MODULE_ROOT}/tests/test_signal_flow.cpp")
     WIN_TEST_PITCH=$(cygpath -w "${MODULE_ROOT}/tests/test_pitch_detection.cpp")
@@ -41,6 +42,7 @@ cl /nologo /std:c++17 /Zc:__cplusplus /EHsc ^
  /I"${WIN_MODULE_ROOT}" ^
  "${WIN_MODULE_CPP}" ^
  "${WIN_HARMONIC_CPP}" ^
+ "${WIN_SPECTRAL_CPP}" ^
  "${WIN_PITCH_CPP}" ^
  "${WIN_TEST_SIGNAL}" ^
  "${WIN_TEST_PITCH}" ^
@@ -69,6 +71,7 @@ else
         -I"${MODULE_ROOT}" \
         "${MODULE_ROOT}/../CrossModHarmonicSeparator.cpp" \
         "${MODULE_ROOT}/HarmonicSeriesGenerator.cpp" \
+        "${MODULE_ROOT}/HarmonicSpectralSeparator.cpp" \
         "${MODULE_ROOT}/PitchDetector.cpp" \
         "${MODULE_ROOT}/tests/test_signal_flow.cpp" \
         "${MODULE_ROOT}/tests/test_pitch_detection.cpp" \

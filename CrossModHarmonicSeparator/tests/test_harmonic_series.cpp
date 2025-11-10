@@ -3,9 +3,13 @@
 #define CROSSMOD_TEST_ENV_HEADER "CrossModTestEnv.h"
 
 #include <algorithm>
+#include <random>
 #include <vector>
 
 #include "HarmonicSeriesGenerator.h"
+#include "HarmonicSpectralSeparator.h"
+#include "helpers/TestSignalGenerators.h"
+#include "helpers/DSPTestUtils.h"
 
 namespace
 {
@@ -99,5 +103,180 @@ TEST(HarmonicSeries, InvalidFundamental)
     generator.update(-100.0f);
     EXPECT_FALSE(generator.hasSeries());
 }
+
+TEST(HarmonicSeries, LargeHarmonicCount)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(55.0f);
+
+    ASSERT_TRUE(generator.hasSeries());
+
+    std::size_t expectedPrimeCount = 0;
+    std::size_t expectedCompositeCount = 0;
+    std::size_t harmonic = 2;
+    while (true) {
+        const float freq = 55.0f * static_cast<float>(harmonic);
+        if (freq > kNyquist) {
+            break;
+        }
+        if (HarmonicSeriesGenerator::isPrime(harmonic)) {
+            ++expectedPrimeCount;
+        } else {
+            ++expectedCompositeCount;
+        }
+        ++harmonic;
+    }
+
+    EXPECT_EQ(generator.primeNumbers().size(), expectedPrimeCount);
+    EXPECT_EQ(generator.compositeNumbers().size(), expectedCompositeCount);
+}
+
+TEST(HarmonicSeries, JitterRobustness)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+
+    std::vector<float> fundamentals { 100.0f, 101.0f, 99.5f, 100.5f, 100.2f };
+    for (float f0 : fundamentals) {
+        generator.update(f0);
+        ASSERT_TRUE(generator.hasSeries());
+        ASSERT_FALSE(generator.fundamentalFrequencies().empty());
+        EXPECT_NEAR(generator.fundamentalFrequencies().front(), f0, 0.5f);
+    }
+}
+
+TEST(HarmonicSeries, RatiosAlignWithIntegers)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(120.0f);
+    ASSERT_TRUE(generator.hasSeries());
+
+    const float fundamental = generator.fundamentalFrequencies().front();
+
+    auto validate = [&](const std::vector<float>& freqs, const std::vector<std::size_t>& numbers) {
+        ASSERT_EQ(freqs.size(), numbers.size());
+        for (std::size_t i = 0; i < freqs.size(); ++i) {
+            const float ratio = freqs[i] / fundamental;
+            EXPECT_NEAR(ratio, static_cast<float>(numbers[i]), 0.05f);
+        }
+    };
+
+    validate(generator.primeFrequencies(), generator.primeNumbers());
+    validate(generator.compositeFrequencies(), generator.compositeNumbers());
+}
+
+TEST(HarmonicSpectralSeparator, FundamentalCapturesEnergy)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(100.0f);
+
+    HarmonicSpectralSeparator separator(kSampleRate);
+    separator.setHarmonicData(100.0f, generator.primeNumbers(), generator.compositeNumbers());
+
+    auto sine = generateSine(100.0f, 0.7f, kSampleRate, 1024);
+    ASSERT_TRUE(separator.processBuffer(sine.data(), sine.size()));
+    ASSERT_TRUE(separator.hasResult());
+
+    const float total = separator.totalEnergy();
+    ASSERT_GT(total, 0.0f);
+    EXPECT_GT(separator.fundamentalEnergy() / total, 0.6f);
+    EXPECT_LT(separator.primeEnergy() / total, 0.2f);
+    EXPECT_LT(separator.compositeEnergy() / total, 0.2f);
+}
+
+TEST(HarmonicSpectralSeparator, PrimeCompositeIsolation)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(100.0f);
+
+    HarmonicSpectralSeparator separator(kSampleRate);
+    separator.setHarmonicData(100.0f, generator.primeNumbers(), generator.compositeNumbers());
+
+    std::vector<std::size_t> primeHarmonics { 2, 3, 5 };
+    auto primeSignal = generateHarmonicSum(100.0f, primeHarmonics, 0.6f, kSampleRate, 1024);
+
+    ASSERT_TRUE(separator.processBuffer(primeSignal.data(), primeSignal.size()));
+    const float totalPrime = separator.totalEnergy();
+    EXPECT_GT(separator.primeEnergy() / totalPrime, 0.5f);
+    EXPECT_LT(separator.compositeEnergy() / totalPrime, 0.35f);
+
+    HarmonicSpectralSeparator compositeSeparator(kSampleRate);
+    compositeSeparator.setHarmonicData(100.0f, generator.primeNumbers(), generator.compositeNumbers());
+
+    std::vector<std::size_t> compositeHarmonics { 4, 6, 8 };
+    auto compositeSignal = generateHarmonicSum(100.0f, compositeHarmonics, 0.6f, kSampleRate, 1024);
+    ASSERT_TRUE(compositeSeparator.processBuffer(compositeSignal.data(), compositeSignal.size()));
+    const float totalComposite = compositeSeparator.totalEnergy();
+    EXPECT_GT(compositeSeparator.compositeEnergy() / totalComposite, 0.5f);
+    EXPECT_LT(compositeSeparator.primeEnergy() / totalComposite, 0.35f);
+}
+
+TEST(HarmonicSpectralSeparator, ReconstructionAccuracy)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(120.0f);
+
+    HarmonicSpectralSeparator separator(kSampleRate);
+    separator.setHarmonicData(120.0f, generator.primeNumbers(), generator.compositeNumbers());
+
+    std::vector<std::size_t> harmonics { 1, 2, 3, 4, 5 };
+    auto complexSignal = generateHarmonicSum(120.0f, harmonics, 0.7f, kSampleRate, 1024);
+    ASSERT_TRUE(separator.processBuffer(complexSignal.data(), complexSignal.size()));
+    ASSERT_TRUE(separator.hasResult());
+
+    EXPECT_LT(separator.reconstructionError(), 0.7f);
+}
+
+TEST(HarmonicSpectralSeparator, NoiseInjectionTolerance)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(150.0f);
+
+    HarmonicSpectralSeparator baseSeparator(kSampleRate);
+    baseSeparator.setHarmonicData(150.0f, generator.primeNumbers(), generator.compositeNumbers());
+    auto baseSignal = generateHarmonicSum(150.0f, generator.primeNumbers(), 0.6f, kSampleRate, 1024);
+    ASSERT_TRUE(baseSeparator.processBuffer(baseSignal.data(), baseSignal.size()));
+    const float baseRatio = baseSeparator.primeEnergy() / baseSeparator.totalEnergy();
+
+    HarmonicSpectralSeparator noisySeparator(kSampleRate);
+    noisySeparator.setHarmonicData(150.0f, generator.primeNumbers(), generator.compositeNumbers());
+
+    std::vector<float> noisySignal = baseSignal;
+    std::mt19937 rng(42);
+    std::normal_distribution<float> dist(0.0f, 0.001f);
+    for (float& sample : noisySignal) {
+        sample += dist(rng);
+    }
+
+    ASSERT_TRUE(noisySeparator.processBuffer(noisySignal.data(), noisySignal.size()));
+    const float noisyRatio = noisySeparator.primeEnergy() / noisySeparator.totalEnergy();
+
+    EXPECT_NEAR(noisyRatio, baseRatio, 0.02f);
+}
+
+TEST(HarmonicSpectralSeparator, NyquistExclusion)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(10000.0f);
+
+    HarmonicSpectralSeparator separator(kSampleRate);
+    separator.setHarmonicData(10000.0f, generator.primeNumbers(), generator.compositeNumbers());
+
+    auto signal = generateSine(10000.0f, 0.6f, kSampleRate, 1024);
+    ASSERT_TRUE(separator.processBuffer(signal.data(), signal.size()));
+    ASSERT_TRUE(separator.hasResult());
+
+    EXPECT_GT(separator.fundamentalEnergy(), 0.0f);
+    EXPECT_FLOAT_EQ(separator.compositeEnergy(), 0.0f);
+}
+
+TEST(HarmonicSpectralSeparator, ResetWhenNoConfiguration)
+{
+    HarmonicSpectralSeparator separator(kSampleRate);
+    auto signal = generateSine(440.0f, 0.6f, kSampleRate, 1024);
+
+    EXPECT_FALSE(separator.processBuffer(signal.data(), signal.size()));
+    EXPECT_FALSE(separator.hasResult());
+}
+
 
 

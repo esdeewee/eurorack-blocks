@@ -10,3 +10,9 @@
 [submodule "submodules/gyp-next"]
 	path = submodules/gyp-next
 	url = https://github.com/nodejs/gyp-next.git
+[submodule "submodules/kissfft"]
+	path = submodules/kissfft
+	url = https://github.com/mborgerding/kissfft.git
+[submodule "submodules/soundpipe"]
+	path = submodules/soundpipe
+	url = https://github.com/paulbatchelor/soundpipe.git

@@ -12,6 +12,7 @@ void  CrossModHarmonicSeparator::init ()
    // you can setup your module here.
    pitch_detector.reset();
    harmonic_series.reset();
+   spectral_separator.reset();
    has_detected_pitch = false;
    detected_pitch_hz = 0.0f;
    has_harmonic_series = false;
@@ -20,6 +21,15 @@ void  CrossModHarmonicSeparator::init ()
    composite_group.clear();
    prime_numbers.clear();
    composite_numbers.clear();
+   has_spectral_separation = false;
+   fundamental_time.clear();
+   prime_time.clear();
+   composite_time.clear();
+   energy_total = 0.0f;
+   energy_fundamental = 0.0f;
+   energy_prime = 0.0f;
+   energy_composite = 0.0f;
+   reconstruction_error = 0.0f;
 }
 
 
@@ -62,6 +72,27 @@ void  CrossModHarmonicSeparator::process ()
       composite_group.assign(composites.begin(), composites.end());
       prime_numbers.assign(primeNums.begin(), primeNums.end());
       composite_numbers.assign(compositeNums.begin(), compositeNums.end());
+
+      spectral_separator.setHarmonicData(detected_pitch_hz, prime_numbers, composite_numbers);
+      if (spectral_separator.processBuffer(ui.audio_in.data(), erb_BUFFER_SIZE) && spectral_separator.hasResult())
+      {
+         has_spectral_separation = true;
+         fundamental_time.assign(spectral_separator.fundamentalTimeDomain().begin(),
+                                 spectral_separator.fundamentalTimeDomain().end());
+         prime_time.assign(spectral_separator.primeTimeDomain().begin(),
+                           spectral_separator.primeTimeDomain().end());
+         composite_time.assign(spectral_separator.compositeTimeDomain().begin(),
+                               spectral_separator.compositeTimeDomain().end());
+         energy_total = spectral_separator.totalEnergy();
+         energy_fundamental = spectral_separator.fundamentalEnergy();
+         energy_prime = spectral_separator.primeEnergy();
+         energy_composite = spectral_separator.compositeEnergy();
+         reconstruction_error = spectral_separator.reconstructionError();
+      }
+      else
+      {
+         has_spectral_separation = false;
+      }
    }
    else
    {
@@ -70,5 +101,15 @@ void  CrossModHarmonicSeparator::process ()
       composite_group.clear();
       prime_numbers.clear();
       composite_numbers.clear();
+      spectral_separator.reset();
+      has_spectral_separation = false;
+      fundamental_time.clear();
+      prime_time.clear();
+      composite_time.clear();
+      energy_total = 0.0f;
+      energy_fundamental = 0.0f;
+      energy_prime = 0.0f;
+      energy_composite = 0.0f;
+      reconstruction_error = 0.0f;
    }
 }
