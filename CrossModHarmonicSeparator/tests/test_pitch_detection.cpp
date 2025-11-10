@@ -90,4 +90,15 @@ TEST(PitchDetection, SilenceHandling)
     EXPECT_NEAR(detector.getLastPitchHz(), 440.0f, 5.0f);
 }
 
+TEST(PitchDetection, RequiresSufficientSamples)
+{
+    PitchDetector detector(kSampleRate);
+
+    auto shortTone = generateSine(440.0f, 0.5f, kSampleRate, 512);
+    feedSignal(detector, shortTone);
+
+    EXPECT_FALSE(detector.hasPitch());
+    EXPECT_FLOAT_EQ(detector.getCurrentPitchHz(), 0.0f);
+}
+
 

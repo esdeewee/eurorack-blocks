@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <vector>
+
 #if defined (CROSSMOD_TEST_ENV_HEADER)
    #include CROSSMOD_TEST_ENV_HEADER
 #else
@@ -11,6 +13,7 @@
 #endif
 
 #include "PitchDetector.h"
+#include "HarmonicSeriesGenerator.h"
 
 
 struct CrossModHarmonicSeparator
@@ -26,7 +29,16 @@ struct CrossModHarmonicSeparator
    void  process ();
 
    // Put here your DSP objects
-   PitchDetector pitch_detector { 48000.0f };
-   bool          has_detected_pitch = false;
-   float         detected_pitch_hz = 0.0f;
+   PitchDetector             pitch_detector { 48000.0f };
+   HarmonicSeriesGenerator   harmonic_series { 48000.0f };
+
+   bool   has_detected_pitch = false;
+   float  detected_pitch_hz = 0.0f;
+
+   bool   has_harmonic_series = false;
+   std::vector<float> fundamental_group;
+   std::vector<float> prime_group;
+   std::vector<float> composite_group;
+   std::vector<std::size_t> prime_numbers;
+   std::vector<std::size_t> composite_numbers;
 };

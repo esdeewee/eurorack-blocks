@@ -19,9 +19,11 @@ if [[ -f "${VCVARS_BAT}" ]]; then
     WIN_HELPERS=$(cygpath -w "${MODULE_ROOT}/tests/helpers")
     WIN_MODULE_ROOT=$(cygpath -w "${MODULE_ROOT}")
     WIN_MODULE_CPP=$(cygpath -w "${MODULE_ROOT}/../CrossModHarmonicSeparator.cpp")
+    WIN_HARMONIC_CPP=$(cygpath -w "${MODULE_ROOT}/HarmonicSeriesGenerator.cpp")
     WIN_PITCH_CPP=$(cygpath -w "${MODULE_ROOT}/PitchDetector.cpp")
     WIN_TEST_SIGNAL=$(cygpath -w "${MODULE_ROOT}/tests/test_signal_flow.cpp")
     WIN_TEST_PITCH=$(cygpath -w "${MODULE_ROOT}/tests/test_pitch_detection.cpp")
+    WIN_TEST_HARMONIC=$(cygpath -w "${MODULE_ROOT}/tests/test_harmonic_series.cpp")
     WIN_GTEST_ALL=$(cygpath -w "${GTEST_ROOT}/googletest/src/gtest-all.cc")
     WIN_GTEST_MAIN=$(cygpath -w "${GTEST_ROOT}/googletest/src/gtest_main.cc")
     WIN_RESULTS_XML=$(cygpath -w "${BUILD_DIR}/test-results.xml")
@@ -38,9 +40,11 @@ cl /nologo /std:c++17 /Zc:__cplusplus /EHsc ^
  /I"${WIN_HELPERS}" ^
  /I"${WIN_MODULE_ROOT}" ^
  "${WIN_MODULE_CPP}" ^
+ "${WIN_HARMONIC_CPP}" ^
  "${WIN_PITCH_CPP}" ^
  "${WIN_TEST_SIGNAL}" ^
  "${WIN_TEST_PITCH}" ^
+ "${WIN_TEST_HARMONIC}" ^
  "${WIN_GTEST_ALL}" ^
  "${WIN_GTEST_MAIN}" ^
  /Fe:"${WIN_BUILD_DIR}\\runTests.exe"
@@ -64,9 +68,11 @@ else
         -I"${MODULE_ROOT}/tests/helpers" \
         -I"${MODULE_ROOT}" \
         "${MODULE_ROOT}/../CrossModHarmonicSeparator.cpp" \
+        "${MODULE_ROOT}/HarmonicSeriesGenerator.cpp" \
         "${MODULE_ROOT}/PitchDetector.cpp" \
         "${MODULE_ROOT}/tests/test_signal_flow.cpp" \
         "${MODULE_ROOT}/tests/test_pitch_detection.cpp" \
+        "${MODULE_ROOT}/tests/test_harmonic_series.cpp" \
         "${GTEST_ROOT}/googletest/src/gtest-all.cc" \
         "${GTEST_ROOT}/googletest/src/gtest_main.cc" \
         -o "${BUILD_DIR}/runTests"
