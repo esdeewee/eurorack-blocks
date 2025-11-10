@@ -1,0 +1,25 @@
+// CrossModHarmonicSeparator.erbb
+
+module CrossModHarmonicSeparator {
+
+   // Put more sources in this list as you add classes
+   sources {
+      file "CrossModHarmonicSeparator.cpp"
+      file "CrossModHarmonicSeparator.h"
+      file "CrossModHarmonicSeparator.erbui"
+      file "PitchDetector.cpp"
+      file "PitchDetector.h"
+   }
+
+   // Put more resources in this list as you add data like audio samples, etc.
+   resources {
+      // Example of an audio sample "sample.wav" accessible in 'process' as 'data.foo':
+      // data foo AudioSample { file "sample.wav" }
+   }
+
+   // !!! IMPORTANT !!!
+   // Every time you change this file, you need to re-run 'erbb configure'
+
+   // erbb grammar reference is here:
+   // https://eurorack-blocks.readthedocs.io/en/latest/erbb/grammar.html
+}
