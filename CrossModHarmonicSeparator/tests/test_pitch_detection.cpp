@@ -51,6 +51,36 @@ TEST(PitchDetection, KnownFrequenciesAccuracy)
     }
 }
 
+TEST(PitchDetection, LowFrequencyCoverage)
+{
+    PitchDetector detector(kSampleRate);
+    const std::vector<float> lowFrequencies { 40.0f, 50.0f, 60.0f, 75.0f };
+
+    for (float freq : lowFrequencies) {
+        detector.reset();
+        auto signal = generateSine(freq, 0.6f, kSampleRate, 8192);
+        feedSignal(detector, signal);
+
+        ASSERT_TRUE(detector.hasPitch()) << "Expected pitch detected for low frequency " << freq << " Hz";
+        EXPECT_NEAR(detector.getCurrentPitchHz(), freq, 1.5f);
+    }
+}
+
+TEST(PitchDetection, HighFrequencyCoverage)
+{
+    PitchDetector detector(kSampleRate);
+    const std::vector<float> highFrequencies { 1530.0f, 2650.0f, 4000.0f };
+
+    for (float freq : highFrequencies) {
+        detector.reset();
+        auto signal = generateSine(freq, 0.6f, kSampleRate, 8192);
+        feedSignal(detector, signal);
+
+        ASSERT_TRUE(detector.hasPitch()) << "Expected pitch detected for high frequency " << freq << " Hz";
+        EXPECT_NEAR(detector.getCurrentPitchHz(), freq, 3.0f);
+    }
+}
+
 TEST(PitchDetection, HarmonicSignal)
 {
     PitchDetector detector(kSampleRate);

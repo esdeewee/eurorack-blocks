@@ -89,5 +89,119 @@ TEST(SignalFlow, ImpulseLatency)
     EXPECT_EQ (firstOutputIndex, 0u);
 }
 
+TEST(SignalFlow, LowFrequencySeparationEnergy)
+{
+    CrossModHarmonicSeparator module;
+    module.init();
+
+    const float frequency = 60.0f;
+    auto source = generateSine(frequency, 0.5f, kSampleRate, 48000);
+
+    std::vector<float> routedInput;
+    std::vector<float> separatedSum;
+
+    std::size_t cursor = 0;
+    float lastDetectedPitch = 0.0f;
+    while (cursor < source.size()) {
+        for (std::size_t i = 0; i < erb_BUFFER_SIZE; ++i) {
+            const float sample = (cursor < source.size()) ? source[cursor++] : 0.0f;
+            module.ui.audio_in[i] = sample;
+            routedInput.push_back(sample);
+        }
+
+        module.process();
+        if (module.has_detected_pitch) {
+            lastDetectedPitch = module.detected_pitch_hz;
+        }
+
+        for (std::size_t i = 0; i < erb_BUFFER_SIZE; ++i) {
+            const float separated = module.ui.fundamental_debug[i]
+                                    + module.ui.prime_debug[i]
+                                    + module.ui.composite_debug[i];
+            separatedSum.push_back(separated);
+        }
+    }
+
+    EXPECT_TRUE(module.has_spectral_separation);
+
+    const std::size_t analysis = module.spectral_separator.analysisSize();
+    const std::size_t hop = module.spectral_separator.hopSize();
+    const std::size_t delay = (analysis > hop) ? (analysis - hop) : 0;
+
+    ASSERT_GT(routedInput.size(), delay + 1024);
+    ASSERT_GT(separatedSum.size(), delay + 1024);
+
+    const std::size_t length = std::min(routedInput.size() - delay, separatedSum.size());
+    double energyFundamental = 0.0;
+    double energySum = 0.0;
+    for (std::size_t i = delay; i < delay + length; ++i) {
+        energyFundamental += static_cast<double>(routedInput[i]) * static_cast<double>(routedInput[i]);
+    }
+    for (std::size_t i = 0; i < length; ++i) {
+        energySum += static_cast<double>(separatedSum[i]) * static_cast<double>(separatedSum[i]);
+    }
+
+    EXPECT_NEAR(energySum, energyFundamental, energyFundamental * 0.02);
+}
+
+TEST(SignalFlow, HighFrequencyReconstructionMatchesInput)
+{
+    CrossModHarmonicSeparator module;
+    module.init();
+
+    const float frequency = 1530.0f;
+    auto source = generateSine(frequency, 0.4f, kSampleRate, 48000);
+
+    std::vector<float> routedInput;
+    std::vector<float> separatedSum;
+
+    std::size_t cursor = 0;
+    float lastDetectedPitch = 0.0f;
+    while (cursor < source.size()) {
+        for (std::size_t i = 0; i < erb_BUFFER_SIZE; ++i) {
+            const float sample = (cursor < source.size()) ? source[cursor++] : 0.0f;
+            module.ui.audio_in[i] = sample;
+            routedInput.push_back(sample);
+        }
+
+        module.process();
+        if (module.has_detected_pitch) {
+            lastDetectedPitch = module.detected_pitch_hz;
+        }
+
+        for (std::size_t i = 0; i < erb_BUFFER_SIZE; ++i) {
+            const float separated = module.ui.fundamental_debug[i]
+                                    + module.ui.prime_debug[i]
+                                    + module.ui.composite_debug[i];
+            separatedSum.push_back(separated);
+        }
+    }
+
+    EXPECT_TRUE(module.has_spectral_separation);
+
+    const std::size_t analysis = module.spectral_separator.analysisSize();
+    const std::size_t hop = module.spectral_separator.hopSize();
+    const std::size_t delay = (analysis > hop) ? (analysis - hop) : 0;
+
+    ASSERT_GT(routedInput.size(), delay + 1024);
+    ASSERT_GT(separatedSum.size(), delay + 1024);
+
+    const std::size_t length = std::min(routedInput.size() - delay, separatedSum.size());
+    double diffEnergy = 0.0;
+    double referenceEnergy = 0.0;
+    for (std::size_t i = 0; i < length; ++i) {
+        const float reference = routedInput[i + delay];
+        const float reconstructed = separatedSum[i];
+        const double delta = static_cast<double>(reference) - static_cast<double>(reconstructed);
+        diffEnergy += delta * delta;
+        referenceEnergy += static_cast<double>(reference) * static_cast<double>(reference);
+    }
+
+    ASSERT_GT(referenceEnergy, 0.0);
+    const double normalizedError = std::sqrt(diffEnergy / referenceEnergy);
+    std::cout << "HighFrequencyReconstruction normalized error: " << normalizedError << std::endl;
+    EXPECT_LT(normalizedError, 0.02);
+    EXPECT_NEAR(lastDetectedPitch, frequency, 3.0f);
+}
 
 

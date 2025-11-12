@@ -7,7 +7,7 @@
 class PitchDetector
 {
 public:
-    PitchDetector(float sampleRate, std::size_t analysisSize = 1024, std::size_t hopSize = 48);
+    PitchDetector(float sampleRate, std::size_t analysisSize = 2048, std::size_t hopSize = 48);
 
     void reset();
 
@@ -18,7 +18,7 @@ public:
     float getLastPitchHz() const;
 
 private:
-    bool detectPitch(const float* windowStart, float& outPitchHz);
+    bool detectPitch(const float* windowStart, std::size_t windowLength, float& outPitchHz);
     float computeRms(const float* windowStart, std::size_t length) const;
 
     float sample_rate_;

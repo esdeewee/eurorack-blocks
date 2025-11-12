@@ -45,7 +45,7 @@ cl /nologo /std:c++17 /Zc:__cplusplus /EHsc ^
  "${WIN_HARMONIC_CPP}" ^
  "${WIN_SPECTRAL_CPP}" ^
  "${WIN_PITCH_CPP}" ^
-"${WIN_KISSFFT_WRAPPER}" ^
+ "${WIN_KISSFFT_WRAPPER}" ^
  "${WIN_TEST_SIGNAL}" ^
  "${WIN_TEST_PITCH}" ^
  "${WIN_TEST_HARMONIC}" ^

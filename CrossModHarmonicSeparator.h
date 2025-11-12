@@ -7,9 +7,9 @@
 #if defined (CROSSMOD_TEST_ENV_HEADER)
    #include CROSSMOD_TEST_ENV_HEADER
 #else
-   #include "artifacts/CrossModHarmonicSeparatorUi.h"
-   //#include "artifacts/CrossModHarmonicSeparatorData.h" Uncomment if you use some 'data' resources
-   #include "erb/erb.h"
+#include "artifacts/CrossModHarmonicSeparatorUi.h"
+//#include "artifacts/CrossModHarmonicSeparatorData.h" Uncomment if you use some 'data' resources
+#include "erb/erb.h"
 #endif
 
 #include "CrossModHarmonicSeparator/PitchDetector.h"
@@ -57,4 +57,5 @@ struct CrossModHarmonicSeparator
    std::vector<float> prime_overlap;
    std::vector<float> composite_overlap;
    std::vector<float> normalization_overlap;
+   std::vector<float> normalization_pattern;
 };

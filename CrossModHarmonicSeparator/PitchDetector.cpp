@@ -7,20 +7,30 @@
 
 namespace
 {
-constexpr float kDefaultThreshold = 0.10f;
-constexpr float kSilenceRmsThreshold = 1.0e-4f;
-constexpr float kMinFrequency = 50.0f;
-constexpr float kMaxFrequency = 2000.0f;
+constexpr float kDefaultThreshold      = 0.10f;
+constexpr float kSilenceRmsThreshold   = 1.0e-5f;
+constexpr float kMinFrequency          = 40.0f;
+constexpr float kMaxFrequency          = 6000.0f;
 
-float parabolicInterpolate(float tau, float prev, float cur, float next)
+float parabolicInterpolateDifference(const std::vector<float>& diff, std::size_t tau, std::size_t maxTau)
 {
-    const float denominator = 2.0f * (prev - 2.0f * cur + next);
-    if (denominator == 0.0f) {
-        return tau;
+    if (tau == 0 || tau >= maxTau) {
+        return static_cast<float>(tau);
+    }
+    if (tau + 1 > maxTau) {
+        return static_cast<float>(tau);
     }
 
-    const float delta = (prev - next) / denominator;
-    return tau + delta;
+    const float prev = diff[tau - 1];
+    const float cur  = diff[tau];
+    const float next = diff[tau + 1];
+    const float denominator = prev - 2.0f * cur + next;
+    if (std::fabs(denominator) < 1.0e-12f) {
+        return static_cast<float>(tau);
+    }
+
+    const float delta = 0.5f * (prev - next) / denominator;
+    return static_cast<float>(tau) + delta;
 }
 } // namespace
 
@@ -48,12 +58,17 @@ void PitchDetector::processBuffer(const float* buffer, std::size_t length)
 {
     accumulator_.insert(accumulator_.end(), buffer, buffer + length);
 
-    if (accumulator_.size() < analysis_size_) {
+    const std::size_t windowLength = std::min<std::size_t>(accumulator_.size(), analysis_size_);
+    const std::size_t maxTauNeeded = static_cast<std::size_t>(sample_rate_ / kMinFrequency);
+    const std::size_t minWindow = std::max<std::size_t>(maxTauNeeded, hop_size_ * 2);
+
+    if (windowLength < minWindow) {
+        current_pitch_hz_.reset();
         return;
     }
 
-    const float* windowStart = accumulator_.data() + (accumulator_.size() - analysis_size_);
-    const float rms = computeRms(windowStart, analysis_size_);
+    const float* windowStart = accumulator_.data() + (accumulator_.size() - windowLength);
+    const float rms = computeRms(windowStart, windowLength);
 
     if (rms < kSilenceRmsThreshold) {
         current_pitch_hz_.reset();
@@ -64,7 +79,7 @@ void PitchDetector::processBuffer(const float* buffer, std::size_t length)
     }
 
     float pitchHz = 0.0f;
-    if (detectPitch(windowStart, pitchHz)) {
+    if (detectPitch(windowStart, windowLength, pitchHz)) {
         current_pitch_hz_ = pitchHz;
         last_valid_pitch_hz_ = pitchHz;
     } else {
@@ -91,18 +106,26 @@ float PitchDetector::getLastPitchHz() const
     return last_valid_pitch_hz_.value_or(0.0f);
 }
 
-bool PitchDetector::detectPitch(const float* windowStart, float& outPitchHz)
+bool PitchDetector::detectPitch(const float* windowStart, std::size_t windowLength, float& outPitchHz)
 {
-    const std::size_t maxTau = std::min<std::size_t>(analysis_size_ / 2, static_cast<std::size_t>(sample_rate_ / kMinFrequency));
+    if (windowLength < 3) {
+        return false;
+    }
+
+    const std::size_t maxTauLimit = (windowLength > 1) ? (windowLength - 1) : 0;
+    const std::size_t maxTau = std::min<std::size_t>(maxTauLimit, static_cast<std::size_t>(sample_rate_ / kMinFrequency));
     const std::size_t minTau = std::max<std::size_t>(2, static_cast<std::size_t>(sample_rate_ / kMaxFrequency));
-    const std::size_t windowLimit = analysis_size_ - 1;
+    if (maxTau <= minTau) {
+        return false;
+    }
 
     std::fill(difference_.begin(), difference_.end(), 0.0f);
     std::fill(cmnd_.begin(), cmnd_.end(), 0.0f);
 
     for (std::size_t tau = 1; tau <= maxTau; ++tau) {
         float sum = 0.0f;
-        for (std::size_t i = 0; i < windowLimit - tau; ++i) {
+        const std::size_t limit = windowLength - tau;
+        for (std::size_t i = 0; i < limit; ++i) {
             const float delta = windowStart[i] - windowStart[i + tau];
             sum += delta * delta;
         }
@@ -137,17 +160,38 @@ bool PitchDetector::detectPitch(const float* windowStart, float& outPitchHz)
         return false;
     }
 
-    const float prev = cmnd_[bestTau > 1 ? bestTau - 1 : bestTau];
-    const float cur = cmnd_[bestTau];
-    const float next = cmnd_[bestTau + 1 <= maxTau ? bestTau + 1 : bestTau];
-    const float refinedTau = parabolicInterpolate(static_cast<float>(bestTau), prev, cur, next);
+    std::size_t refinedTauIndex = bestTau;
+    while (refinedTauIndex / 2 >= minTau) {
+        const std::size_t half = refinedTauIndex / 2;
+        if (cmnd_[half] + 1.0e-3f < cmnd_[refinedTauIndex]) {
+            refinedTauIndex = half;
+        } else {
+            break;
+        }
+    }
+
+    const float refinedTau = parabolicInterpolateDifference(difference_, refinedTauIndex, maxTau);
 
     if (refinedTau <= 0.0f) {
         return false;
     }
 
-    outPitchHz = sample_rate_ / refinedTau;
-    return std::isfinite(outPitchHz) && outPitchHz > 0.0f;
+    const float rawPitchHz = sample_rate_ / refinedTau;
+    const float smoothingAlpha = 0.7f;
+    if (last_valid_pitch_hz_) {
+        outPitchHz = smoothingAlpha * rawPitchHz + (1.0f - smoothingAlpha) * last_valid_pitch_hz_.value();
+    } else {
+        outPitchHz = rawPitchHz;
+    }
+    if (!std::isfinite(outPitchHz) || outPitchHz <= 0.0f) {
+        return false;
+    }
+
+    if (outPitchHz < kMinFrequency || outPitchHz > kMaxFrequency) {
+        return false;
+    }
+
+    return true;
 }
 
 float PitchDetector::computeRms(const float* windowStart, std::size_t length) const

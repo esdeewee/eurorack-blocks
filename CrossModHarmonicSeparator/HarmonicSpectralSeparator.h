@@ -46,7 +46,10 @@ public:
 private:
     void ensureWindow();
     void clearSpectra();
-    void assignBin(std::size_t bin, std::vector<std::complex<float>>& target);
+    void assignBin(std::size_t bin,
+                   std::vector<std::complex<float>>& target,
+                   std::vector<int>& ownership,
+                   int category);
     void computeInverse(const std::vector<std::complex<float>>& spectrum,
                         std::vector<float>& destination);
     void allocateFft();

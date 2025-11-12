@@ -223,7 +223,47 @@ TEST(HarmonicSpectralSeparator, ReconstructionAccuracy)
     ASSERT_TRUE(separator.processBuffer(complexSignal.data(), complexSignal.size()));
     ASSERT_TRUE(separator.hasResult());
 
-    EXPECT_LT(separator.reconstructionError(), 0.7f);
+    EXPECT_LT(separator.reconstructionError(), 0.05f);
+}
+
+TEST(HarmonicSpectralSeparator, ReconstructsLowFundamental)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(60.0f);
+    ASSERT_TRUE(generator.hasSeries());
+
+    HarmonicSpectralSeparator separator(kSampleRate);
+    separator.setHarmonicData(60.0f, generator.primeNumbers(), generator.compositeNumbers());
+
+    std::vector<std::size_t> harmonics { 1 };
+    harmonics.insert(harmonics.end(), generator.primeNumbers().begin(), generator.primeNumbers().end());
+    harmonics.insert(harmonics.end(), generator.compositeNumbers().begin(), generator.compositeNumbers().end());
+
+    auto signal = generateHarmonicSum(60.0f, harmonics, 0.6f, kSampleRate, 4096);
+    ASSERT_TRUE(separator.processBuffer(signal.data(), signal.size()));
+    ASSERT_TRUE(separator.hasResult());
+
+    EXPECT_LT(separator.reconstructionError(), 0.05f);
+}
+
+TEST(HarmonicSpectralSeparator, ReconstructsHighFundamental)
+{
+    HarmonicSeriesGenerator generator(kSampleRate);
+    generator.update(4000.0f);
+    ASSERT_TRUE(generator.hasSeries());
+
+    HarmonicSpectralSeparator separator(kSampleRate);
+    separator.setHarmonicData(4000.0f, generator.primeNumbers(), generator.compositeNumbers());
+
+    std::vector<std::size_t> harmonics { 1 };
+    harmonics.insert(harmonics.end(), generator.primeNumbers().begin(), generator.primeNumbers().end());
+    harmonics.insert(harmonics.end(), generator.compositeNumbers().begin(), generator.compositeNumbers().end());
+
+    auto signal = generateHarmonicSum(4000.0f, harmonics, 0.6f, kSampleRate, 4096);
+    ASSERT_TRUE(separator.processBuffer(signal.data(), signal.size()));
+    ASSERT_TRUE(separator.hasResult());
+
+    EXPECT_LT(separator.reconstructionError(), 0.05f);
 }
 
 TEST(HarmonicSpectralSeparator, NoiseInjectionTolerance)

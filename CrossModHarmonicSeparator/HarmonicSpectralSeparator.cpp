@@ -117,25 +117,67 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
     }
 
     clearSpectra();
+    std::vector<int> bin_owner(analysis_size_, 0);
 
-    auto assignHarmonic = [&](std::size_t harmonicNumber, std::vector<std::complex<float>>& target) {
-        if (harmonicNumber == 0) {
-            return;
-        }
-        const float freq = fundamental_hz_ * static_cast<float>(harmonicNumber);
-        const auto bin = static_cast<std::size_t>(std::llround(freq * static_cast<float>(analysis_size_) / sample_rate_));
-        if (bin >= analysis_size_) {
-            return;
-        }
-        assignBin(bin, target);
+    constexpr std::size_t kHalfBandwidthBins = 4;
+    const float bin_hz = sample_rate_ / static_cast<float>(analysis_size_);
+    const float maxDeviationHz = bin_hz * static_cast<float>(kHalfBandwidthBins);
+
+    auto isPrimeHarmonic = [&](std::size_t harmonicNumber) {
+        return std::find(prime_numbers_.begin(), prime_numbers_.end(), harmonicNumber) != prime_numbers_.end();
+    };
+    auto isCompositeHarmonic = [&](std::size_t harmonicNumber) {
+        return std::find(composite_numbers_.begin(), composite_numbers_.end(), harmonicNumber) != composite_numbers_.end();
     };
 
-    assignHarmonic(1, fundamental_spectrum_);
-    for (std::size_t prime : prime_numbers_) {
-        assignHarmonic(prime, prime_spectrum_);
+    for (std::size_t bin = 0; bin <= analysis_size_ / 2; ++bin) {
+        const float freq = bin_hz * static_cast<float>(bin);
+        if (freq <= 0.0f) {
+            continue;
+        }
+
+        std::size_t harmonicNumber = static_cast<std::size_t>(std::llround(freq / fundamental_hz_));
+        if (harmonicNumber == 0) {
+            harmonicNumber = 1;
+        }
+
+        const float expectedFreq = fundamental_hz_ * static_cast<float>(harmonicNumber);
+        const float deviation = std::fabs(freq - expectedFreq);
+
+        int category = 3;
+        if (deviation > maxDeviationHz) {
+            category = 3;
+        } else if (harmonicNumber == 1) {
+            category = 1;
+        } else if (isPrimeHarmonic(harmonicNumber)) {
+            category = 2;
+        } else if (isCompositeHarmonic(harmonicNumber)) {
+            category = 3;
+        } else {
+            category = 3;
+        }
+
+        switch (category) {
+        case 1:
+            assignBin(bin, fundamental_spectrum_, bin_owner, category);
+            break;
+        case 2:
+            assignBin(bin, prime_spectrum_, bin_owner, category);
+            break;
+        default:
+            assignBin(bin, composite_spectrum_, bin_owner, category);
+            break;
+        }
     }
-    for (std::size_t composite : composite_numbers_) {
-        assignHarmonic(composite, composite_spectrum_);
+
+    for (std::size_t bin = 0; bin < analysis_size_; ++bin) {
+        if (bin_owner[bin] == 0) {
+            const float magnitude = std::abs(spectrum_[bin]);
+            if (magnitude < 1.0e-6f) {
+                continue;
+            }
+            assignBin(bin, composite_spectrum_, bin_owner, 3);
+        }
     }
 
     computeInverse(fundamental_spectrum_, fundamental_time_domain_);
@@ -262,13 +304,21 @@ void HarmonicSpectralSeparator::clearSpectra()
     std::fill(composite_spectrum_.begin(), composite_spectrum_.end(), std::complex<float>{0.0f, 0.0f});
 }
 
-void HarmonicSpectralSeparator::assignBin(std::size_t bin, std::vector<std::complex<float>>& target)
+void HarmonicSpectralSeparator::assignBin(std::size_t bin,
+                                          std::vector<std::complex<float>>& target,
+                                          std::vector<int>& ownership,
+                                          int category)
 {
     if (bin >= analysis_size_) {
         return;
     }
 
+    if (ownership[bin] != 0 && ownership[bin] != category) {
+        return;
+    }
+
     target[bin] = spectrum_[bin];
+    ownership[bin] = category;
 
     if (bin == 0 || bin == analysis_size_ / 2) {
         return;
@@ -276,7 +326,11 @@ void HarmonicSpectralSeparator::assignBin(std::size_t bin, std::vector<std::comp
 
     const std::size_t mirror = analysis_size_ - bin;
     if (mirror < analysis_size_) {
+        if (ownership[mirror] != 0 && ownership[mirror] != category) {
+            return;
+        }
         target[mirror] = spectrum_[mirror];
+        ownership[mirror] = category;
     }
 }
 
