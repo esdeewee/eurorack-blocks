@@ -33,6 +33,38 @@ inline std::vector<float> generateSawtooth(float frequencyHz, float amplitude, f
     return buffer;
 }
 
+inline std::vector<float> generateSquare(float frequencyHz, float amplitude, float sampleRate, size_t sampleCount)
+{
+    std::vector<float> buffer(sampleCount);
+    const float period = sampleRate / frequencyHz;
+
+    for (size_t i = 0; i < sampleCount; ++i) {
+        const float t = static_cast<float>(i);
+        const float phase = std::fmod(t, period) / period;
+        buffer[i] = (phase < 0.5f) ? amplitude : -amplitude;
+    }
+
+    return buffer;
+}
+
+inline std::vector<float> generateTriangle(float frequencyHz, float amplitude, float sampleRate, size_t sampleCount)
+{
+    std::vector<float> buffer(sampleCount);
+    const float period = sampleRate / frequencyHz;
+
+    for (size_t i = 0; i < sampleCount; ++i) {
+        const float t = static_cast<float>(i);
+        const float phase = std::fmod(t, period) / period;
+        if (phase < 0.5f) {
+            buffer[i] = amplitude * (4.0f * phase - 1.0f);
+        } else {
+            buffer[i] = amplitude * (3.0f - 4.0f * phase);
+        }
+    }
+
+    return buffer;
+}
+
 inline std::vector<float> generateSineSweep(float startHz,
                                             float endHz,
                                             float amplitude,
