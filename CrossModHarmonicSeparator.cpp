@@ -2,10 +2,80 @@
 
 #include "CrossModHarmonicSeparator.h"
 
-#include <cstddef>
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <numeric>
+#include <vector>
+
+namespace
+{
+constexpr float kMinNormalizationValue = 1.0e-6f;
+
+int64_t floorDiv(int64_t numerator, int64_t denominator)
+{
+   if (denominator <= 0)
+   {
+      return 0;
+   }
+   if (numerator >= 0)
+   {
+      return numerator / denominator;
+   }
+   return -(( -numerator + denominator - 1) / denominator);
+}
+
+int64_t ceilDiv(int64_t numerator, int64_t denominator)
+{
+   if (denominator <= 0)
+   {
+      return 0;
+   }
+   if (numerator >= 0)
+   {
+      return (numerator + denominator - 1) / denominator;
+   }
+   return -(( -numerator) / denominator);
+}
+
+std::vector<float> computeNormalizationPattern(const std::vector<float>& window,
+                                               std::size_t hop)
+{
+   const std::size_t analysis_size = window.size();
+   if (analysis_size == 0 || hop == 0)
+   {
+      return std::vector<float>(analysis_size == 0 ? 1 : analysis_size, 1.0f);
+   }
+
+   const int64_t hop64 = static_cast<int64_t>(hop);
+   const int64_t analysis64 = static_cast<int64_t>(analysis_size);
+
+   std::vector<float> pattern(analysis_size, 0.0f);
+   for (std::size_t n = 0; n < analysis_size; ++n)
+   {
+      const int64_t n64 = static_cast<int64_t>(n);
+      const int64_t min_k = ceilDiv(n64 - analysis64 + 1, hop64);
+      const int64_t max_k = floorDiv(n64, hop64);
+
+      float sum_sq = 0.0f;
+      for (int64_t k = min_k; k <= max_k; ++k)
+      {
+         const int64_t offset = k * hop64;
+         const int64_t idx = n64 - offset;
+         if (idx >= 0 && idx < analysis64)
+         {
+            const float w = window[static_cast<std::size_t>(idx)];
+            sum_sq += w * w;
+         }
+      }
+      pattern[n] = std::max(sum_sq, kMinNormalizationValue);
+   }
+
+   return pattern;
+}
+} // namespace
 
 
 
@@ -42,27 +112,27 @@ void  CrossModHarmonicSeparator::init ()
 
    const auto& window = spectral_separator.window();
    const std::size_t hop = spectral_separator.hopSize();
-   if (hop > 0)
+   if (analysis_size > 0)
    {
-      std::vector<float> pattern_sq(hop, 0.0f);
-      for (std::size_t n = 0; n < analysis_size; ++n)
+      if (hop > 0 && analysis_size > hop)
       {
-         const float win = window[n];
-         pattern_sq[n % hop] += win * win;
+         normalization_pattern = computeNormalizationPattern(window, hop);
       }
-      for (std::size_t n = 0; n < analysis_size; ++n)
+      else
       {
-         const float win = window[n];
-         const float phase_norm = std::max(pattern_sq[n % hop], 1.0e-6f);
-         normalization_pattern[n] = phase_norm;
-         normalization_overlap[n] = phase_norm;
+         for (std::size_t n = 0; n < analysis_size; ++n)
+         {
+            const float w = window[n];
+            normalization_pattern[n] = std::max(w * w, kMinNormalizationValue);
+         }
       }
    }
    else
    {
-      std::fill(normalization_overlap.begin(), normalization_overlap.end(), 1.0f);
-      std::fill(normalization_pattern.begin(), normalization_pattern.end(), 1.0f);
+      normalization_pattern.assign(1, 1.0f);
    }
+   normalization_overlap = normalization_pattern;
+   normalization_phase = 0;
 }
 
 
@@ -133,35 +203,20 @@ void  CrossModHarmonicSeparator::process ()
             normalization_pattern.assign(analysis_size, 0.0f);
 
             const std::size_t hop = spectral_separator.hopSize();
-            if (hop > 0)
+            if (hop > 0 && analysis_size > hop)
             {
-               std::vector<float> pattern_sq(hop, 0.0f);
-               for (std::size_t n = 0; n < analysis_size; ++n)
-               {
-                  const float win = window[n];
-                  pattern_sq[n % hop] += win * win;
-               }
-               for (std::size_t n = 0; n < analysis_size; ++n)
-               {
-                  const float phase_norm = std::max(pattern_sq[n % hop], 1.0e-6f);
-                  normalization_pattern[n] = phase_norm;
-                  normalization_overlap[n] = phase_norm;
-               }
+               normalization_pattern = computeNormalizationPattern(window, hop);
             }
             else
             {
-               std::fill(normalization_overlap.begin(), normalization_overlap.end(), 1.0f);
-               std::fill(normalization_pattern.begin(), normalization_pattern.end(), 1.0f);
+               for (std::size_t n = 0; n < analysis_size; ++n)
+               {
+                  const float w = window[n];
+                  normalization_pattern[n] = std::max(w * w, kMinNormalizationValue);
+               }
             }
-         }
-
-         for (std::size_t n = 0; n < analysis_size; ++n)
-         {
-            const float win = window[n];
-            fundamental_overlap[n] += fundamental_domain[n] * win;
-            prime_overlap[n] += prime_domain[n] * win;
-            composite_overlap[n] += composite_domain[n] * win;
-            normalization_overlap[n] += win * win;
+            normalization_overlap = normalization_pattern;
+            normalization_phase = 0;
          }
 
          energy_total = spectral_separator.totalEnergy();
@@ -195,18 +250,27 @@ void  CrossModHarmonicSeparator::process ()
       std::fill(fundamental_overlap.begin(), fundamental_overlap.end(), 0.0f);
       std::fill(prime_overlap.begin(), prime_overlap.end(), 0.0f);
       std::fill(composite_overlap.begin(), composite_overlap.end(), 0.0f);
-      std::fill(normalization_overlap.begin(), normalization_overlap.end(), 1.0f);
-      std::fill(normalization_pattern.begin(), normalization_pattern.end(), 1.0f);
+      normalization_overlap = normalization_pattern;
+      normalization_phase = 0;
    }
 
    const std::size_t hop = std::min<std::size_t>(spectral_separator.hopSize(), erb_BUFFER_SIZE);
+   const std::size_t pattern_size = normalization_pattern.size();
    for (std::size_t i = 0 ; i < hop ; ++i)
    {
-      const float norm = (i < normalization_overlap.size()) ? normalization_overlap[i] : 1.0f;
-      const float safe_norm = (norm > 1.0e-6f) ? norm : 1.0f;
-      ui.fundamental_debug [i] = (i < fundamental_overlap.size()) ? fundamental_overlap[i] / safe_norm : 0.0f;
-      ui.prime_debug [i] = (i < prime_overlap.size()) ? prime_overlap[i] / safe_norm : 0.0f;
-      ui.composite_debug [i] = (i < composite_overlap.size()) ? composite_overlap[i] / safe_norm : 0.0f;
+      float norm = 1.0f;
+      if (pattern_size > 0)
+      {
+         const std::size_t idx = (normalization_phase + i) % pattern_size;
+         norm = normalization_pattern[idx];
+      }
+      if (norm <= kMinNormalizationValue)
+      {
+         norm = 1.0f;
+      }
+      ui.fundamental_debug [i] = (i < fundamental_overlap.size()) ? fundamental_overlap[i] / norm : 0.0f;
+      ui.prime_debug [i] = (i < prime_overlap.size()) ? prime_overlap[i] / norm : 0.0f;
+      ui.composite_debug [i] = (i < composite_overlap.size()) ? composite_overlap[i] / norm : 0.0f;
    }
    for (std::size_t i = hop ; i < erb_BUFFER_SIZE ; ++i)
    {
@@ -215,36 +279,56 @@ void  CrossModHarmonicSeparator::process ()
       ui.composite_debug [i] = 0.0f;
    }
 
-   auto shiftBuffer = [hop](std::vector<float>& buffer, const std::vector<float>* pattern) {
+   normalization_phase = (pattern_size > 0) ? ((normalization_phase + hop) % pattern_size) : 0;
+
+   auto shiftBuffer = [hop](std::vector<float>& buffer) {
       if (buffer.empty())
       {
          return;
       }
       if (hop >= buffer.size())
       {
-         if (pattern && pattern->size() == buffer.size())
-         {
-            buffer = *pattern;
-         }
-         else
-         {
-            std::fill(buffer.begin(), buffer.end(), 0.0f);
-         }
+         std::fill(buffer.begin(), buffer.end(), 0.0f);
          return;
       }
-      std::move(buffer.begin() + hop, buffer.end(), buffer.begin());
-      if (pattern && pattern->size() == buffer.size())
-      {
-         std::copy(pattern->end() - hop, pattern->end(), buffer.end() - hop);
-      }
-      else
-      {
-         std::fill(buffer.end() - hop, buffer.end(), 0.0f);
-      }
+      // Shift left by hop samples (source is to the right of destination, so std::copy is safe)
+      std::copy(buffer.begin() + hop, buffer.end(), buffer.begin());
+      std::fill(buffer.end() - hop, buffer.end(), 0.0f);
    };
 
-   shiftBuffer(fundamental_overlap, nullptr);
-   shiftBuffer(prime_overlap, nullptr);
-   shiftBuffer(composite_overlap, nullptr);
-   shiftBuffer(normalization_overlap, &normalization_pattern);
+   shiftBuffer(fundamental_overlap);
+   shiftBuffer(prime_overlap);
+   shiftBuffer(composite_overlap);
+
+   // Add new windowed frames to overlap buffers after shifting
+   // After shifting, position 0 is where the new frame should start (overlapping with remaining tail)
+   if (has_spectral_separation)
+   {
+      const auto& fundamental_domain = spectral_separator.fundamentalTimeDomain();
+      const auto& prime_domain = spectral_separator.primeTimeDomain();
+      const auto& composite_domain = spectral_separator.compositeTimeDomain();
+      const auto& window = spectral_separator.window();
+      const std::size_t analysis_size = spectral_separator.analysisSize();
+      
+      // Add windowed frame starting at position 0 (overlaps with tail from previous frames)
+      for (std::size_t n = 0; n < analysis_size; ++n)
+      {
+         const float win = window[n];
+         const float scaled = fundamental_domain[n] * win;
+         const float scaled_prime = prime_domain[n] * win;
+         const float scaled_composite = composite_domain[n] * win;
+         if (n < fundamental_overlap.size())
+         {
+            fundamental_overlap[n] += scaled;
+         }
+         if (n < prime_overlap.size())
+         {
+            prime_overlap[n] += scaled_prime;
+         }
+         if (n < composite_overlap.size())
+         {
+            composite_overlap[n] += scaled_composite;
+         }
+      }
+   }
 }

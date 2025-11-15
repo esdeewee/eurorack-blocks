@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <vector>
 
 #if defined (CROSSMOD_TEST_ENV_HEADER)
@@ -58,4 +59,5 @@ struct CrossModHarmonicSeparator
    std::vector<float> composite_overlap;
    std::vector<float> normalization_overlap;
    std::vector<float> normalization_pattern;
+   std::size_t normalization_phase = 0;
 };

@@ -9,6 +9,8 @@ namespace
 {
 constexpr float kDefaultThreshold      = 0.10f;
 constexpr float kSilenceRmsThreshold   = 1.0e-5f;
+constexpr float kMinRmsForPitchUpdate  = 0.05f; // Minimum RMS to update last_valid_pitch_hz_ (very high threshold to prevent updates during transitions to silence)
+constexpr float kMaxPitchChangeHz      = 0.5f; // Maximum absolute pitch change to update last_valid_pitch_hz_ (extremely strict to preserve pitch during transitions)
 constexpr float kMinFrequency          = 40.0f;
 constexpr float kMaxFrequency          = 6000.0f;
 
@@ -72,6 +74,7 @@ void PitchDetector::processBuffer(const float* buffer, std::size_t length)
 
     if (rms < kSilenceRmsThreshold) {
         current_pitch_hz_.reset();
+        // Don't update last_valid_pitch_hz_ on silence - preserve the last valid pitch
         if (accumulator_.size() > analysis_size_ + hop_size_) {
             accumulator_.erase(accumulator_.begin(), accumulator_.begin() + hop_size_);
         }
@@ -81,9 +84,28 @@ void PitchDetector::processBuffer(const float* buffer, std::size_t length)
     float pitchHz = 0.0f;
     if (detectPitch(windowStart, windowLength, pitchHz)) {
         current_pitch_hz_ = pitchHz;
-        last_valid_pitch_hz_ = pitchHz;
+        // Only update last_valid_pitch_hz_ if RMS is high enough for reliable detection
+        // This prevents updating with spurious detections during transitions to silence
+        if (rms >= kMinRmsForPitchUpdate) {
+            // If we have a previous valid pitch, only update if the new pitch is reasonably close
+            if (last_valid_pitch_hz_) {
+                const float lastPitch = last_valid_pitch_hz_.value();
+                const float pitchChangeAbs = std::fabs(pitchHz - lastPitch);
+                const float pitchChangeRel = pitchChangeAbs / std::max(pitchHz, lastPitch);
+                // Only update if both absolute and relative change are small (strict continuity)
+                if (pitchChangeAbs < kMaxPitchChangeHz && pitchChangeRel < 0.2f) {
+                    last_valid_pitch_hz_ = pitchHz;
+                }
+                // Otherwise preserve the last valid pitch
+            } else {
+                // No previous pitch, so accept this one
+                last_valid_pitch_hz_ = pitchHz;
+            }
+        }
+        // If RMS is too low, don't update last_valid_pitch_hz_ - preserve the last valid pitch
     } else {
         current_pitch_hz_.reset();
+        // Don't update last_valid_pitch_hz_ when pitch detection fails - preserve the last valid pitch
     }
 
     if (accumulator_.size() > analysis_size_ + hop_size_) {
@@ -156,19 +178,21 @@ bool PitchDetector::detectPitch(const float* windowStart, std::size_t windowLeng
         }
     }
 
-    if (!candidateFound || bestTau == 0) {
+    if (!candidateFound) {
+        float bestValue = std::numeric_limits<float>::max();
+        for (std::size_t tau = minTau; tau <= maxTau; ++tau) {
+            if (cmnd_[tau] < bestValue) {
+                bestValue = cmnd_[tau];
+                bestTau = tau;
+            }
+        }
+    }
+
+    if (bestTau == 0) {
         return false;
     }
 
     std::size_t refinedTauIndex = bestTau;
-    while (refinedTauIndex / 2 >= minTau) {
-        const std::size_t half = refinedTauIndex / 2;
-        if (cmnd_[half] + 1.0e-3f < cmnd_[refinedTauIndex]) {
-            refinedTauIndex = half;
-        } else {
-            break;
-        }
-    }
 
     const float refinedTau = parabolicInterpolateDifference(difference_, refinedTauIndex, maxTau);
 
@@ -177,12 +201,27 @@ bool PitchDetector::detectPitch(const float* windowStart, std::size_t windowLeng
     }
 
     const float rawPitchHz = sample_rate_ / refinedTau;
-    const float smoothingAlpha = 0.7f;
+    if (!std::isfinite(rawPitchHz) || rawPitchHz <= 0.0f) {
+        return false;
+    }
+
+    if (rawPitchHz < kMinFrequency || rawPitchHz > kMaxFrequency) {
+        return false;
+    }
+
+    const float smoothingAlpha = 0.3f;
     if (last_valid_pitch_hz_) {
-        outPitchHz = smoothingAlpha * rawPitchHz + (1.0f - smoothingAlpha) * last_valid_pitch_hz_.value();
+        const float lastPitch = last_valid_pitch_hz_.value();
+        const float pitchChange = std::fabs(rawPitchHz - lastPitch) / std::max(rawPitchHz, lastPitch);
+        if (pitchChange < 0.1f) {
+            outPitchHz = smoothingAlpha * rawPitchHz + (1.0f - smoothingAlpha) * lastPitch;
+        } else {
+            outPitchHz = rawPitchHz;
+        }
     } else {
         outPitchHz = rawPitchHz;
     }
+
     if (!std::isfinite(outPitchHz) || outPitchHz <= 0.0f) {
         return false;
     }
