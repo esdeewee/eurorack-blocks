@@ -60,4 +60,14 @@ struct CrossModHarmonicSeparator
    std::vector<float> normalization_overlap;
    std::vector<float> normalization_pattern;
    std::size_t normalization_phase = 0;
+   
+   // Debug members for energy analysis (only in test environment)
+   #if defined(CROSSMOD_DEBUG_ENABLED) || defined(_DEBUG)
+   std::vector<float> debug_window_sum_pattern;  // Sum of windows (not squared) for COLA verification
+   std::vector<int> debug_overlap_count_pattern;  // Number of overlapping frames at each position
+   double debug_pre_normalization_energy = 0.0;   // Energy before normalization
+   double debug_post_normalization_energy = 0.0;   // Energy after normalization
+   double debug_input_energy = 0.0;                // Input energy for current buffer
+   std::vector<double> debug_normalization_values; // Normalization values used for output
+   #endif
 };

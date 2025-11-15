@@ -231,6 +231,15 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
     prime_energy_ = computeEnergy(prime_time_domain_);
     composite_energy_ = computeEnergy(composite_time_domain_);
     
+    // Note: Energy normalization is NOT applied here because:
+    // 1. The overlap-add compensation in CrossModHarmonicSeparator needs to work with
+    //    the actual separated energies to calculate the correct compensation factor
+    // 2. Energy normalization here would interfere with the frequency-dependent
+    //    overlap-add compensation that accounts for both spectral separation efficiency
+    //    and overlap-add energy scaling
+    // 3. The energy values (fundamental_energy_, prime_energy_, composite_energy_)
+    //    are used for analysis but the actual signal scaling is handled by overlap-add compensation
+    
     // For high-frequency signals near Nyquist, spectral leakage can cause small amounts
     // of energy to appear in composite spectrum. Filter out very small composite energy
     // values that are likely numerical noise, but only for high-frequency signals
