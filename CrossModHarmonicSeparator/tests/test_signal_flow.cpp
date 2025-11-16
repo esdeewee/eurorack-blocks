@@ -396,29 +396,26 @@ DetailedEnergyAnalysis verifyEnergyPreservationForInputDetailed(const char* inpu
     const std::size_t hop = module.spectral_separator.hopSize();
     const std::size_t delay = (analysis_size > hop) ? (analysis_size - hop) : 0;
 
-    if (routedInput.size() <= delay + 1024 || separatedSum.size() <= delay + 1024) {
+    const std::size_t minSpan = std::min(routedInput.size(), separatedSum.size());
+    if (minSpan <= (delay * 2) + 1024) {
         std::cerr << "ERROR: " << inputType << ": Insufficient samples for analysis\n";
         return analysis;
     }
 
-    const std::size_t length = std::min(routedInput.size() - delay, separatedSum.size() - delay);
-    
-    for (std::size_t i = 0; i < length; ++i) {
-        const std::size_t inputIdx = delay + i;
-        const std::size_t outputIdx = delay + i;
-        if (inputIdx < routedInput.size() && outputIdx < separatedSum.size()) {
-            const double inVal = static_cast<double>(routedInput[inputIdx]);
-            const double outVal = static_cast<double>(separatedSum[outputIdx]);
-            const double fundVal = static_cast<double>(fundamentalOnly[outputIdx]);
-            const double primeVal = static_cast<double>(primeOnly[outputIdx]);
-            const double compVal = static_cast<double>(compositeOnly[outputIdx]);
-            
-            analysis.energyInput += inVal * inVal;
-            analysis.energyOutput += outVal * outVal;
-            analysis.energyFundamental += fundVal * fundVal;
-            analysis.energyPrime += primeVal * primeVal;
-            analysis.energyComposite += compVal * compVal;
-        }
+    const std::size_t startIdx = delay;
+    const std::size_t endIdx = minSpan - delay;
+    for (std::size_t idx = startIdx; idx < endIdx; ++idx) {
+        const double inVal = static_cast<double>(routedInput[idx]);
+        const double outVal = static_cast<double>(separatedSum[idx]);
+        const double fundVal = static_cast<double>(fundamentalOnly[idx]);
+        const double primeVal = static_cast<double>(primeOnly[idx]);
+        const double compVal = static_cast<double>(compositeOnly[idx]);
+        
+        analysis.energyInput += inVal * inVal;
+        analysis.energyOutput += outVal * outVal;
+        analysis.energyFundamental += fundVal * fundVal;
+        analysis.energyPrime += primeVal * primeVal;
+        analysis.energyComposite += compVal * compVal;
     }
 
     analysis.energyRatio = (analysis.energyInput > 0.0) ? (analysis.energyOutput / analysis.energyInput) : 0.0;
@@ -453,10 +450,9 @@ DetailedEnergyAnalysis verifyEnergyPreservationForInputDetailed(const char* inpu
     std::cout << "  Max Value:         " << analysis.maxNormalizationValue << "\n";
     std::cout << "========================================\n";
 
-    // Verify energy preservation within tolerance (but don't fail immediately - collect data first)
-    if (std::abs(analysis.energyRatio - 1.0) > tolerance) {
-        std::cout << "WARNING: Energy ratio " << analysis.energyRatio << " exceeds tolerance " << tolerance << "\n";
-    }
+    EXPECT_NEAR(analysis.energyRatio, 1.0, tolerance)
+        << inputType << ": energy ratio outside tolerance ("
+        << analysis.energyRatio << " vs 1.0, tol=" << tolerance << ")";
 
     return analysis;
 }
@@ -1048,6 +1044,66 @@ TEST(SignalFlow, VerificationLowAmplitudeSignals)
                               std::to_string(static_cast<int>(amp * 1000));
             auto source = generateSine(freq, amp, kSampleRate, 48000);
             verifyEnergyPreservationForInput(name.c_str(), source, 0.15f); // Higher tolerance for very low amplitudes
+        }
+    }
+}
+
+TEST(SignalFlow, VerificationNoiseSignals)
+{
+    const std::vector<float> amplitudes = {0.1f, 0.3f};
+    const std::vector<unsigned int> seeds = {0x1u, 0x2u, 0x3u};
+
+    for (float amp : amplitudes)
+    {
+        for (unsigned int seed : seeds)
+        {
+            std::string name = "WhiteNoise_amp" + std::to_string(static_cast<int>(amp * 100)) + "_seed" + std::to_string(seed);
+            auto white = generateWhiteNoise(amp, 48000, seed);
+            verifyEnergyPreservationForInput(name.c_str(), white, 0.12f);
+
+            std::string burstName = "BurstNoise_amp" + std::to_string(static_cast<int>(amp * 100)) + "_seed" + std::to_string(seed);
+            auto bursts = generateNoiseBursts(amp,
+                                              static_cast<size_t>(0.02f * kSampleRate),
+                                              static_cast<size_t>(0.03f * kSampleRate),
+                                              48000,
+                                              seed + 13u);
+            verifyEnergyPreservationForInput(burstName.c_str(), bursts, 0.15f);
+        }
+    }
+}
+
+TEST(SignalFlow, VerificationImpulseAndBurstSignals)
+{
+    const std::vector<size_t> periods = {960, 2400, 4800}; // 20 Hz, 10 Hz, 5 Hz at 48 kHz
+    for (size_t period : periods)
+    {
+        std::string impulseName = "ImpulseTrain_" + std::to_string(period);
+        auto impulses = generateImpulseTrain(0.8f, period, 48000);
+        verifyEnergyPreservationForInput(impulseName.c_str(), impulses, 0.10f);
+    }
+
+    const std::vector<float> burstFreqs = {80.0f, 220.0f};
+    for (float freq : burstFreqs)
+    {
+        std::string percussiveName = "Percussive_" + std::to_string(static_cast<int>(freq));
+        auto burst = generatePercussiveBurst(freq, 0.7f, 0.4f, kSampleRate, 48000);
+        verifyEnergyPreservationForInput(percussiveName.c_str(), burst, 0.10f);
+    }
+}
+
+TEST(SignalFlow, VerificationRandomStepSignals)
+{
+    const std::vector<float> amplitudes = {0.2f, 0.4f};
+    const std::vector<size_t> stepSizes = {240, 960, 2400}; // 5 ms, 20 ms, 50 ms
+
+    for (float amp : amplitudes)
+    {
+        for (size_t step : stepSizes)
+        {
+            std::string name = "RandomStep_amp" + std::to_string(static_cast<int>(amp * 100)) +
+                               "_step" + std::to_string(step);
+            auto steps = generateRandomStepSequence(amp, step, 48000);
+            verifyEnergyPreservationForInput(name.c_str(), steps, 0.10f);
         }
     }
 }

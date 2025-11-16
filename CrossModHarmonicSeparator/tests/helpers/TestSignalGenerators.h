@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <cmath>
+#include <random>
 
 constexpr float kPi = 3.14159265358979323846f;
 
@@ -129,6 +130,107 @@ inline std::vector<float> generateHarmonicSum(float fundamentalHz,
         }
     }
 
+    return buffer;
+}
+
+inline std::vector<float> generateWhiteNoise(float amplitude,
+                                             size_t sampleCount,
+                                             unsigned int seed = 0xC0FFEEu)
+{
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<float> dist(-amplitude, amplitude);
+    std::vector<float> buffer(sampleCount);
+    for (size_t i = 0; i < sampleCount; ++i)
+    {
+        buffer[i] = dist(rng);
+    }
+    return buffer;
+}
+
+inline std::vector<float> generateNoiseBursts(float amplitude,
+                                              size_t burstLengthSamples,
+                                              size_t gapLengthSamples,
+                                              size_t sampleCount,
+                                              unsigned int seed = 0xB17Eu)
+{
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<float> dist(-amplitude, amplitude);
+    std::vector<float> buffer(sampleCount, 0.0f);
+
+    size_t pos = 0;
+    while (pos < sampleCount)
+    {
+        size_t burstLen = std::min(burstLengthSamples, sampleCount - pos);
+        for (size_t i = 0; i < burstLen; ++i)
+        {
+            buffer[pos + i] = dist(rng);
+        }
+        pos += burstLen;
+        size_t gap = std::min(gapLengthSamples, (pos < sampleCount) ? (sampleCount - pos) : 0);
+        pos += gap;
+    }
+    return buffer;
+}
+
+inline std::vector<float> generateImpulseTrain(float amplitude,
+                                               size_t periodSamples,
+                                               size_t sampleCount)
+{
+    std::vector<float> buffer(sampleCount, 0.0f);
+    if (periodSamples == 0)
+    {
+        return buffer;
+    }
+    for (size_t i = 0; i < sampleCount; i += periodSamples)
+    {
+        buffer[i] = amplitude;
+    }
+    return buffer;
+}
+
+inline std::vector<float> generateRandomStepSequence(float amplitude,
+                                                     size_t stepSamples,
+                                                     size_t sampleCount,
+                                                     unsigned int seed = 0x51DEu)
+{
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<float> dist(-amplitude, amplitude);
+    std::vector<float> buffer(sampleCount, 0.0f);
+    if (stepSamples == 0)
+    {
+        stepSamples = 1;
+    }
+
+    size_t pos = 0;
+    while (pos < sampleCount)
+    {
+        float value = dist(rng);
+        size_t len = std::min(stepSamples, sampleCount - pos);
+        for (size_t i = 0; i < len; ++i)
+        {
+            buffer[pos + i] = value;
+        }
+        pos += len;
+    }
+    return buffer;
+}
+
+inline std::vector<float> generatePercussiveBurst(float baseFrequency,
+                                                  float amplitude,
+                                                  float decaySeconds,
+                                                  float sampleRate,
+                                                  size_t sampleCount)
+{
+    std::vector<float> buffer(sampleCount, 0.0f);
+    const float decaySamples = decaySeconds * sampleRate;
+    float phase = 0.0f;
+    for (size_t i = 0; i < sampleCount; ++i)
+    {
+        const float env = std::exp(-static_cast<float>(i) / decaySamples);
+        const float phaseIncrement = 2.0f * kPi * baseFrequency / sampleRate;
+        phase += phaseIncrement;
+        buffer[i] = amplitude * env * std::sin(phase);
+    }
     return buffer;
 }
 
