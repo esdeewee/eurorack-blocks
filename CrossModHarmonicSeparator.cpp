@@ -270,6 +270,30 @@ void  CrossModHarmonicSeparator::init ()
       #endif
    }
    normalization_overlap.assign(analysis_size, 0.0f);
+
+   fundamental_processor.init(48000.0f);
+   fundamental_processor.setLevel(fundamental_params.level);
+   fundamental_processor.setTone(fundamental_params.tone);
+   fundamental_processor.setSpread(fundamental_params.spread);
+   fundamental_processor.reset();
+   fundamental_frame.fill(0.0f);
+   fundamental_processed_block.fill(0.0f);
+
+   prime_processor.init(48000.0f);
+   prime_processor.setExciter(prime_params.exciter);
+   prime_processor.setBrightness(prime_params.brightness);
+   prime_processor.setPhaseRotation(prime_params.phase_rotation);
+   prime_processor.reset();
+   prime_frame.fill(0.0f);
+   prime_processed_block.fill(0.0f);
+
+   composite_processor.init(48000.0f);
+   composite_processor.setSaturation(composite_params.saturation);
+   composite_processor.setWarmth(composite_params.warmth);
+   composite_processor.setDensity(composite_params.density);
+   composite_processor.reset();
+   composite_frame.fill(0.0f);
+   composite_processed_block.fill(0.0f);
 }
 
 
@@ -279,6 +303,7 @@ void  CrossModHarmonicSeparator::process ()
    // get your audio input(s) if any, and write to your audio output(s)
 
    std::array<float, erb_BUFFER_SIZE> input_block {};
+   fundamental_frame.fill(0.0f);
 
    for (std::size_t i = 0 ; i < erb_BUFFER_SIZE ; ++i)
    {
@@ -487,8 +512,20 @@ void  CrossModHarmonicSeparator::process ()
 
       // Perform normalized overlap-add using the live sum of squared windows stored in normalization_overlap.
       ui.fundamental_debug [i] = fund_sample;
+      if (i < fundamental_frame.size())
+      {
+         fundamental_frame[i] = fund_sample;
+      }
       ui.prime_debug [i] = prime_sample;
+      if (i < prime_frame.size())
+      {
+         prime_frame[i] = prime_sample;
+      }
       ui.composite_debug [i] = comp_sample;
+      if (i < composite_frame.size())
+      {
+         composite_frame[i] = comp_sample;
+      }
    }
    
    double hop_output_energy_measure = 0.0;
@@ -507,7 +544,21 @@ void  CrossModHarmonicSeparator::process ()
       ui.fundamental_debug [i] = 0.0f;
       ui.prime_debug [i] = 0.0f;
       ui.composite_debug [i] = 0.0f;
+      fundamental_frame[i] = 0.0f;
+      prime_frame[i] = 0.0f;
+      composite_frame[i] = 0.0f;
    }
+
+   fundamental_processor.processBuffer(fundamental_frame.data(),
+                                       fundamental_processed_block.data(),
+                                       fundamental_frame.size());
+
+   prime_processor.processBuffer(prime_frame.data(),
+                                 prime_processed_block.data(),
+                                 prime_frame.size());
+   composite_processor.processBuffer(composite_frame.data(),
+                                     composite_processed_block.data(),
+                                     composite_frame.size());
 
 #if defined(CROSSMOD_DEBUG_ENABLED) || defined(_DEBUG)
    if (hop > 0)
@@ -659,3 +710,66 @@ void CrossModHarmonicSeparator::dumpDebugState(const char* label) const
    emit("=============================================");
 }
 #endif
+
+void CrossModHarmonicSeparator::setFundamentalLevel(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   fundamental_params.level = clamped;
+   fundamental_processor.setLevel(clamped);
+}
+
+void CrossModHarmonicSeparator::setFundamentalTone(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   fundamental_params.tone = clamped;
+   fundamental_processor.setTone(clamped);
+}
+
+void CrossModHarmonicSeparator::setFundamentalSpread(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   fundamental_params.spread = clamped;
+   fundamental_processor.setSpread(clamped);
+}
+
+void CrossModHarmonicSeparator::setPrimeExciter(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   prime_params.exciter = clamped;
+   prime_processor.setExciter(clamped);
+}
+
+void CrossModHarmonicSeparator::setPrimeBrightness(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   prime_params.brightness = clamped;
+   prime_processor.setBrightness(clamped);
+}
+
+void CrossModHarmonicSeparator::setPrimePhaseRotation(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   prime_params.phase_rotation = clamped;
+   prime_processor.setPhaseRotation(clamped);
+}
+
+void CrossModHarmonicSeparator::setCompositeSaturation(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   composite_params.saturation = clamped;
+   composite_processor.setSaturation(clamped);
+}
+
+void CrossModHarmonicSeparator::setCompositeWarmth(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   composite_params.warmth = clamped;
+   composite_processor.setWarmth(clamped);
+}
+
+void CrossModHarmonicSeparator::setCompositeDensity(float value)
+{
+   const float clamped = std::clamp(value, 0.0f, 1.0f);
+   composite_params.density = clamped;
+   composite_processor.setDensity(clamped);
+}
