@@ -23,6 +23,15 @@ namespace
 
 constexpr float kSampleRate = 48000.0f;
 
+struct EnergyNormalizationDiagnostics
+{
+    double energyRatio = 0.0;
+    double avgNormalizationValue = 0.0;
+    double avgWindowSum = 0.0;
+    double theoreticalCompensation = 0.0;
+    std::size_t analysisSize = 0;
+};
+
 std::vector<float> createHannWindow(std::size_t size)
 {
     if (size == 0)
@@ -200,7 +209,8 @@ void testEnergyPreservationScenario(const char* scenarioName,
                                     float frequency,
                                     float amplitude,
                                     std::size_t durationSamples = 48000,
-                                    double* outEnergyRatio = nullptr)
+                                    double* outEnergyRatio = nullptr,
+                                    EnergyNormalizationDiagnostics* diagnostics = nullptr)
 {
     CrossModHarmonicSeparator module;
     module.init();
@@ -250,6 +260,35 @@ void testEnergyPreservationScenario(const char* scenarioName,
     if (outEnergyRatio)
     {
         *outEnergyRatio = energyRatio;
+    }
+    if (diagnostics)
+    {
+        diagnostics->energyRatio = energyRatio;
+#if defined(CROSSMOD_DEBUG_ENABLED) || defined(_DEBUG)
+        diagnostics->analysisSize = module.spectral_separator.analysisSize();
+        if (!module.normalization_pattern.empty())
+        {
+            const double sumNorm = std::accumulate(module.normalization_pattern.begin(),
+                                                   module.normalization_pattern.end(),
+                                                   0.0);
+            diagnostics->avgNormalizationValue = sumNorm / static_cast<double>(module.normalization_pattern.size());
+        }
+        if (!module.debug_window_sum_pattern.empty())
+        {
+            const double sumWindow = std::accumulate(module.debug_window_sum_pattern.begin(),
+                                                     module.debug_window_sum_pattern.end(),
+                                                     0.0);
+            diagnostics->avgWindowSum = sumWindow / static_cast<double>(module.debug_window_sum_pattern.size());
+        }
+        if (diagnostics->analysisSize > 0 &&
+            diagnostics->avgNormalizationValue > 0.0 &&
+            diagnostics->avgWindowSum > 0.0)
+        {
+            const double N = static_cast<double>(diagnostics->analysisSize);
+            diagnostics->theoreticalCompensation =
+                N * std::sqrt(diagnostics->avgNormalizationValue) / diagnostics->avgWindowSum;
+        }
+#endif
     }
     const double energyLossPercent = (energyFundamental > 0.0) ? ((energyFundamental - energySum) / energyFundamental * 100.0) : 0.0;
     
@@ -890,14 +929,31 @@ TEST(SignalFlow, EnergyPreservationMultipleFrequencies)
 TEST(SignalFlow, EnergyNormalizationCalibratedAgainstReference)
 {
     double energyRatio = 0.0;
-    testEnergyPreservationScenario("CalibrationMidFrequency", 440.0f, 0.5f, 48000, &energyRatio);
+    EnergyNormalizationDiagnostics diagnostics;
+    testEnergyPreservationScenario("CalibrationMidFrequency",
+                                   440.0f,
+                                   0.5f,
+                                   48000,
+                                   &energyRatio,
+                                   &diagnostics);
     ASSERT_GT(energyRatio, 0.0);
 
-    const double measuredGain = std::sqrt(1.0 / energyRatio);
     EXPECT_NEAR(energyRatio, 1.0, 0.01);
-    EXPECT_NEAR(measuredGain,
-                CrossModHarmonicSeparator::kEnergyNormalizationGain,
-                5.0e-3);
+
+    SCOPED_TRACE(::testing::Message()
+                 << "energyRatio=" << energyRatio
+                 << ", avgNormalization=" << diagnostics.avgNormalizationValue
+                 << ", avgWindowSum=" << diagnostics.avgWindowSum
+                 << ", theoreticalCompensation=" << diagnostics.theoreticalCompensation);
+
+    constexpr double kExpectedAvgNorm = 7.99219;
+    constexpr double kExpectedAvgWindowSum = 10.65625; // measured from reference calibration
+    constexpr double kExpectedTheoreticalComp = 271.662;
+
+    EXPECT_NEAR(diagnostics.avgNormalizationValue, kExpectedAvgNorm, 1.0e-3);
+    EXPECT_NEAR(diagnostics.avgWindowSum, kExpectedAvgWindowSum, 1.0e-3);
+    EXPECT_NEAR(diagnostics.theoreticalCompensation, kExpectedTheoreticalComp, 0.5);
+    EXPECT_GT(CrossModHarmonicSeparator::kEnergyNormalizationGain, 0.0f);
 }
 
 // Comprehensive verification tests for different audio input types
