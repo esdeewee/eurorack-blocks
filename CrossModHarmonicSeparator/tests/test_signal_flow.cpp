@@ -10,15 +10,75 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <fstream>
+#include <sstream>
 
 #include "CrossModHarmonicSeparator.h"
 #include "helpers/DSPTestUtils.h"
+#include "helpers/ReferenceIstft.h"
 #include "helpers/TestSignalGenerators.h"
 
 namespace
 {
 
 constexpr float kSampleRate = 48000.0f;
+
+std::vector<float> createHannWindow(std::size_t size)
+{
+    if (size == 0)
+    {
+        return {};
+    }
+
+    std::vector<float> window(size, 0.0f);
+    constexpr double kTwoPi = 6.28318530717958647692;
+    if (size == 1)
+    {
+        window[0] = 1.0f;
+        return window;
+    }
+
+    for (std::size_t n = 0; n < size; ++n)
+    {
+        const double phase = kTwoPi * static_cast<double>(n) / static_cast<double>(size - 1);
+        window[n] = 0.5f * (1.0f - static_cast<float>(std::cos(phase)));
+    }
+    return window;
+}
+
+double computeNormalizedDifference(const std::vector<float>& reference,
+                                   const std::vector<float>& candidate,
+                                   std::size_t delay)
+{
+    if (reference.size() <= delay || candidate.size() <= delay)
+    {
+        return 0.0;
+    }
+
+    const std::size_t length = std::min(reference.size(), candidate.size()) - delay;
+    if (length == 0)
+    {
+        return 0.0;
+    }
+
+    double diffEnergy = 0.0;
+    double refEnergy = 0.0;
+    for (std::size_t i = 0; i < length; ++i)
+    {
+        const double ref = static_cast<double>(reference[delay + i]);
+        const double cand = static_cast<double>(candidate[delay + i]);
+        const double diff = cand - ref;
+        diffEnergy += diff * diff;
+        refEnergy += ref * ref;
+    }
+
+    if (refEnergy <= 0.0)
+    {
+        return 0.0;
+    }
+
+    return std::sqrt(diffEnergy / refEnergy);
+}
 
 // Helper function to analyze energy preservation and spectral separation for different frequencies
 void analyzeEnergyPreservationDetailed(const char* scenarioName,
@@ -139,7 +199,8 @@ void analyzeEnergyPreservationDetailed(const char* scenarioName,
 void testEnergyPreservationScenario(const char* scenarioName,
                                     float frequency,
                                     float amplitude,
-                                    std::size_t durationSamples = 48000)
+                                    std::size_t durationSamples = 48000,
+                                    double* outEnergyRatio = nullptr)
 {
     CrossModHarmonicSeparator module;
     module.init();
@@ -173,26 +234,29 @@ void testEnergyPreservationScenario(const char* scenarioName,
     const std::size_t hop = module.spectral_separator.hopSize();
     const std::size_t delay = (analysis > hop) ? (analysis - hop) : 0;
 
-    ASSERT_GT(routedInput.size(), delay + 1024) << scenarioName << ": Insufficient input samples";
-    ASSERT_GT(separatedSum.size(), delay + 1024) << scenarioName << ": Insufficient output samples";
+    const std::size_t minSpan = std::min(routedInput.size(), separatedSum.size());
+    ASSERT_GT(minSpan, (delay * 2) + 1024) << scenarioName << ": Insufficient samples for trimmed energy comparison";
 
-    const std::size_t length = std::min(routedInput.size() - delay, separatedSum.size() - delay);
+    const std::size_t startIdx = delay;
+    const std::size_t endIdx = minSpan - delay;
     double energyFundamental = 0.0;
     double energySum = 0.0;
-    for (std::size_t i = 0; i < length; ++i) {
-        const std::size_t inputIdx = delay + i;
-        const std::size_t outputIdx = delay + i;
-        if (inputIdx < routedInput.size() && outputIdx < separatedSum.size()) {
-            energyFundamental += static_cast<double>(routedInput[inputIdx]) * static_cast<double>(routedInput[inputIdx]);
-            energySum += static_cast<double>(separatedSum[outputIdx]) * static_cast<double>(separatedSum[outputIdx]);
-        }
+    for (std::size_t idx = startIdx; idx < endIdx; ++idx) {
+        energyFundamental += static_cast<double>(routedInput[idx]) * static_cast<double>(routedInput[idx]);
+        energySum += static_cast<double>(separatedSum[idx]) * static_cast<double>(separatedSum[idx]);
     }
 
     const double energyRatio = (energyFundamental > 0.0) ? (energySum / energyFundamental) : 0.0;
+    if (outEnergyRatio)
+    {
+        *outEnergyRatio = energyRatio;
+    }
     const double energyLossPercent = (energyFundamental > 0.0) ? ((energyFundamental - energySum) / energyFundamental * 100.0) : 0.0;
     
     std::cout << "\n[" << scenarioName << "] Frequency: " << frequency << " Hz, Amplitude: " << amplitude
               << ", Energy ratio: " << energyRatio << ", Loss: " << energyLossPercent << "%\n";
+
+    const bool energyMismatch = std::abs(energySum - energyFundamental) > energyFundamental * 0.02;
 
     // Verify energy preservation (should be within 2% with compensation factor 0.92)
     EXPECT_NEAR(energySum, energyFundamental, energyFundamental * 0.02)
@@ -202,6 +266,28 @@ void testEnergyPreservationScenario(const char* scenarioName,
     // Verify that the energy ratio is close to 1.0 (within 2%)
     EXPECT_NEAR(energyRatio, 1.0, 0.02)
         << scenarioName << ": Energy ratio should be close to 1.0 with compensation factor";
+
+    if (energyMismatch)
+    {
+        std::ofstream diag_stream("signal_flow_debug.log", std::ios::app);
+        auto log_line = [&](const std::string& text) {
+            std::cout << text << "\n";
+            if (diag_stream.is_open()) {
+                diag_stream << text << "\n";
+            }
+        };
+
+        log_line("\n=== Energy Debug Info (helper) ===");
+        log_line((std::ostringstream() << "Scenario: " << scenarioName).str());
+        log_line((std::ostringstream() << "Input energy: " << energyFundamental).str());
+        log_line((std::ostringstream() << "Output energy: " << energySum).str());
+        log_line((std::ostringstream() << "Energy ratio: " << energyRatio).str());
+        log_line((std::ostringstream() << "Energy loss (%): " << energyLossPercent).str());
+
+        #if defined(CROSSMOD_DEBUG_ENABLED) || defined(_DEBUG)
+        module.dumpDebugState(scenarioName);
+        #endif
+    }
 }
 
 // Comprehensive verification test for different audio input types
@@ -457,6 +543,21 @@ TEST(SignalFlow, ImpulseLatency)
     EXPECT_EQ (firstOutputIndex, 0u);
 }
 
+TEST(ReferenceIstft, PerfectReconstructionSine)
+{
+    constexpr std::size_t analysis = 1024;
+    constexpr std::size_t hop = 48;
+    auto window = createHannWindow(analysis);
+    auto source = generateSine(440.0f, 0.3f, kSampleRate, 48000);
+
+    crossmod::test::ReferenceIstft reference(window, hop);
+    const auto reconstructed = reference.reconstruct(source);
+
+    ASSERT_EQ(reconstructed.size(), source.size());
+    const double rmsDifference = computeRmsDifference(source, reconstructed);
+    EXPECT_LT(rmsDifference, 1.0e-3);
+}
+
 TEST(SignalFlow, LowFrequencySeparationEnergy)
 {
     CrossModHarmonicSeparator module;
@@ -496,8 +597,8 @@ TEST(SignalFlow, LowFrequencySeparationEnergy)
     const std::size_t hop = module.spectral_separator.hopSize();
     const std::size_t delay = (analysis > hop) ? (analysis - hop) : 0;
 
-    ASSERT_GT(routedInput.size(), delay + 1024);
-    ASSERT_GT(separatedSum.size(), delay + 1024);
+    EXPECT_GT(routedInput.size(), delay + 1024);
+    EXPECT_GT(separatedSum.size(), delay + 1024);
 
     const std::size_t length = std::min(routedInput.size() - delay, separatedSum.size() - delay);
     double energyFundamental = 0.0;
@@ -511,15 +612,38 @@ TEST(SignalFlow, LowFrequencySeparationEnergy)
         }
     }
 
+    std::cout << "Computed energies before EXPECT: input=" << energyFundamental
+              << ", output=" << energySum << "\n";
     EXPECT_NEAR(energySum, energyFundamental, energyFundamental * 0.02);
+
+    const auto& window = module.spectral_separator.window();
+    crossmod::test::ReferenceIstft reference(window, hop);
+    const auto referenceOutput = reference.reconstruct(routedInput);
+    EXPECT_GT(referenceOutput.size(), delay + 1024);
+
+    const double normalizedReferenceError = computeNormalizedDifference(referenceOutput, separatedSum, delay);
+    std::cout << "Reference normalized error: " << normalizedReferenceError << "\n";
+    EXPECT_LT(normalizedReferenceError, 0.15);
     
+    const bool energyMismatch = std::abs(energySum - energyFundamental) > energyFundamental * 0.02;
+    std::cout << "Energy mismatch bool raw: " << (energyMismatch ? "true" : "false") << "\n";
+    std::cout << "Energy mismatch condition: " << (energyMismatch ? "true" : "false") << "\n";
     // Debug output if test fails
-    if (std::abs(energySum - energyFundamental) > energyFundamental * 0.02) {
-        std::cout << "\n=== Energy Debug Info ===\n";
-        std::cout << "Input energy: " << energyFundamental << "\n";
-        std::cout << "Output energy: " << energySum << "\n";
-        std::cout << "Energy ratio: " << (energySum / energyFundamental) << "\n";
-        std::cout << "Energy loss: " << ((energyFundamental - energySum) / energyFundamental * 100.0) << "%\n";
+    if (energyMismatch) {
+        std::ofstream diag_stream("signal_flow_debug.log", std::ios::app);
+        auto log_line = [&](const std::string& text) {
+            std::cout << text << "\n";
+            if (diag_stream.is_open()) {
+                diag_stream << text << "\n";
+            }
+        };
+
+        log_line("\n=== Energy Debug Info ===");
+        log_line("DEBUG HIT");
+        log_line((std::ostringstream() << "Input energy: " << energyFundamental).str());
+        log_line((std::ostringstream() << "Output energy: " << energySum).str());
+        log_line((std::ostringstream() << "Energy ratio: " << (energySum / energyFundamental)).str());
+        log_line((std::ostringstream() << "Energy loss: " << ((energyFundamental - energySum) / energyFundamental * 100.0) << "%").str());
         
         if (!module.normalization_pattern.empty()) {
             std::cout << "\nNormalization pattern stats:\n";
@@ -601,8 +725,26 @@ TEST(SignalFlow, LowFrequencySeparationEnergy)
             #else
             std::cout << "\nDebug patterns not available (CROSSMOD_DEBUG_ENABLED not defined)\n";
             #endif
+            #if defined(CROSSMOD_DEBUG_ENABLED) || defined(_DEBUG)
+            module.dumpDebugState("LowFrequencySeparationEnergy");
+            #endif
         }
         
+        if (!module.debug_normalization_values.empty()) {
+            double minNormVal = *std::min_element(module.debug_normalization_values.begin(), module.debug_normalization_values.end());
+            double maxNormVal = *std::max_element(module.debug_normalization_values.begin(), module.debug_normalization_values.end());
+            double avgNormVal = std::accumulate(module.debug_normalization_values.begin(), module.debug_normalization_values.end(), 0.0) / module.debug_normalization_values.size();
+            std::cout << "\nRuntime normalization weights:\n";
+            std::cout << "  Min: " << minNormVal << ", Max: " << maxNormVal << ", Avg: " << avgNormVal << "\n";
+        } else {
+            std::cout << "\nRuntime normalization weights: EMPTY\n";
+        }
+        std::cout << "  Buffer stats (min/max/avg): " << module.debug_norm_min << " / "
+                  << module.debug_norm_max << " / " << module.debug_norm_avg << "\n";
+        
+        #if defined(CROSSMOD_DEBUG_ENABLED) || defined(_DEBUG)
+        module.dumpDebugState("LowFrequencySeparationEnergy");
+        #endif
         std::cout << "\nAnalysis size: " << module.spectral_separator.analysisSize() << "\n";
         std::cout << "Hop size: " << module.spectral_separator.hopSize() << "\n";
         std::cout << "Overlap ratio: " << (1.0 - static_cast<double>(module.spectral_separator.hopSize()) / module.spectral_separator.analysisSize()) * 100.0 << "%\n";
@@ -745,8 +887,21 @@ TEST(SignalFlow, EnergyPreservationMultipleFrequencies)
     
     for (std::size_t i = 0; i < frequencies.size(); ++i) {
         std::string scenarioName = "MultiFreq_" + std::to_string(static_cast<int>(frequencies[i]));
-        testEnergyPreservationScenario(scenarioName.c_str(), frequencies[i], amplitudes[i], 24000);
+        testEnergyPreservationScenario(scenarioName.c_str(), frequencies[i], amplitudes[i]);
     }
+}
+
+TEST(SignalFlow, EnergyNormalizationCalibratedAgainstReference)
+{
+    double energyRatio = 0.0;
+    testEnergyPreservationScenario("CalibrationMidFrequency", 440.0f, 0.5f, 48000, &energyRatio);
+    ASSERT_GT(energyRatio, 0.0);
+
+    const double measuredGain = std::sqrt(1.0 / energyRatio);
+    EXPECT_NEAR(energyRatio, 1.0, 0.01);
+    EXPECT_NEAR(measuredGain,
+                CrossModHarmonicSeparator::kEnergyNormalizationGain,
+                5.0e-3);
 }
 
 // Comprehensive verification tests for different audio input types

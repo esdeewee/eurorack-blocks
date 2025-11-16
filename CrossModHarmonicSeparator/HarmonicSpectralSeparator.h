@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <vector>
 
-#include "../submodules/kissfft/kiss_fft.h"
+struct PFFFT_Setup;
 
 class HarmonicSpectralSeparator
 {
@@ -79,12 +79,13 @@ private:
     std::vector<float> prime_time_domain_;
     std::vector<float> composite_time_domain_;
 
-    kiss_fft_cfg forward_fft_;
-    kiss_fft_cfg inverse_fft_;
-    std::vector<kiss_fft_cpx> fft_input_;
-    std::vector<kiss_fft_cpx> fft_output_;
-    std::vector<kiss_fft_cpx> inverse_input_;
-    std::vector<kiss_fft_cpx> inverse_output_;
+    PFFFT_Setup* forward_fft_;
+    PFFFT_Setup* inverse_fft_;
+    std::vector<float> fft_input_buffer_;
+    std::vector<float> fft_output_buffer_;
+    std::vector<float> ifft_input_buffer_;
+    std::vector<float> ifft_output_buffer_;
+    std::vector<float> fft_work_buffer_;
 
     float total_energy_;
     float fundamental_energy_;

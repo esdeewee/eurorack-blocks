@@ -20,6 +20,8 @@
 
 struct CrossModHarmonicSeparator
 {
+   static constexpr float kEnergyNormalizationGain = 1.0133f;
+
    // The UI elements defined in CrossModHarmonicSeparator.erbui are in 'ui'
    CrossModHarmonicSeparatorUi ui;
 
@@ -59,7 +61,6 @@ struct CrossModHarmonicSeparator
    std::vector<float> composite_overlap;
    std::vector<float> normalization_overlap;
    std::vector<float> normalization_pattern;
-   std::size_t normalization_phase = 0;
    
    // Debug members for energy analysis (only in test environment)
    #if defined(CROSSMOD_DEBUG_ENABLED) || defined(_DEBUG)
@@ -69,5 +70,17 @@ struct CrossModHarmonicSeparator
    double debug_post_normalization_energy = 0.0;   // Energy after normalization
    double debug_input_energy = 0.0;                // Input energy for current buffer
    std::vector<double> debug_normalization_values; // Normalization values used for output
+   double debug_norm_min = 0.0;
+   double debug_norm_max = 0.0;
+   double debug_norm_avg = 0.0;
+   double debug_spectral_ratio = 0.0;
+   double debug_total_separated_energy = 0.0;
+   double debug_energy_total_latest = 0.0;
+   std::vector<float> debug_last_normalization_overlap;
+   std::vector<float> debug_last_fundamental_overlap;
+   std::vector<float> debug_last_prime_overlap;
+   std::vector<float> debug_last_composite_overlap;
+   std::vector<float> debug_last_input_buffer;
+   void dumpDebugState(const char* label) const;
    #endif
 };

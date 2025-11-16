@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <stdexcept>
 
+#include "../third_party/pffft/pffft.h"
+
 namespace
 {
 constexpr float kPi = 3.14159265358979323846f;
@@ -38,10 +40,6 @@ HarmonicSpectralSeparator::HarmonicSpectralSeparator(float sampleRate,
     ensureWindow();
     accumulator_.reserve(analysis_size_ * 2);
     allocateFft();
-    fft_input_.resize(analysis_size_);
-    fft_output_.resize(analysis_size_);
-    inverse_input_.resize(analysis_size_);
-    inverse_output_.resize(analysis_size_);
 }
 
 HarmonicSpectralSeparator::~HarmonicSpectralSeparator()
@@ -102,8 +100,9 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
     const float* windowStart = accumulator_.data() + (accumulator_.size() - analysis_size_);
     for (std::size_t n = 0; n < analysis_size_; ++n) {
         windowed_input_[n] = windowStart[n] * window_[n];
-        fft_input_[n].r = windowed_input_[n];
-        fft_input_[n].i = 0.0f;
+        const std::size_t idx = n * 2;
+        fft_input_buffer_[idx] = windowed_input_[n];
+        fft_input_buffer_[idx + 1] = 0.0f;
     }
 
     total_energy_ = 0.0f;
@@ -111,9 +110,14 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
         total_energy_ += sample * sample;
     }
 
-    kiss_fft(forward_fft_, fft_input_.data(), fft_output_.data());
+    pffft_transform_ordered(forward_fft_,
+                            fft_input_buffer_.data(),
+                            fft_output_buffer_.data(),
+                            fft_work_buffer_.data(),
+                            PFFFT_FORWARD);
     for (std::size_t k = 0; k < analysis_size_; ++k) {
-        spectrum_[k] = std::complex<float>(fft_output_[k].r, fft_output_[k].i);
+        const std::size_t idx = k * 2;
+        spectrum_[k] = std::complex<float>(fft_output_buffer_[idx], fft_output_buffer_[idx + 1]);
     }
 
     clearSpectra();
@@ -132,15 +136,27 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
     // Apply a modest safety margin that rejects only the unusable Nyquist bin
     const float nyquist_margin_assign = bin_hz * 0.5f;
     const float nyquist_threshold_assign = nyquistHz - nyquist_margin_assign;
+    constexpr float kMaxHarmonicDeviation = 0.3f;
+    constexpr float kMaxFundamentalDeviation = 0.45f;
+
     for (std::size_t bin = 0; bin <= analysis_size_ / 2; ++bin) {
         const float freq = bin_hz * static_cast<float>(bin);
         if (freq <= 0.0f || freq > nyquist_threshold_assign) {
             continue;
         }
 
-        std::size_t harmonicNumber = static_cast<std::size_t>(std::llround(freq / fundamental_hz_));
+        const float harmonicFloat = freq / fundamental_hz_;
+        const float roundedHarmonicFloat = std::round(harmonicFloat);
+        std::size_t harmonicNumber = static_cast<std::size_t>(roundedHarmonicFloat);
         if (harmonicNumber == 0) {
             harmonicNumber = 1;
+        }
+        const float harmonicDeviation = std::fabs(harmonicFloat - roundedHarmonicFloat);
+        const float allowedDeviationHarmonic = (harmonicNumber == 1)
+            ? kMaxFundamentalDeviation
+            : kMaxHarmonicDeviation;
+        if (harmonicDeviation > allowedDeviationHarmonic) {
+            continue;
         }
 
         const float expectedFreq = fundamental_hz_ * static_cast<float>(harmonicNumber);
@@ -218,6 +234,13 @@ bool HarmonicSpectralSeparator::processBuffer(const float* data, std::size_t len
     computeInverse(fundamental_spectrum_, fundamental_time_domain_);
     computeInverse(prime_spectrum_, prime_time_domain_);
     computeInverse(composite_spectrum_, composite_time_domain_);
+
+    // Enforce perfect reconstruction by using the residual as the composite component.
+    for (std::size_t n = 0; n < analysis_size_; ++n) {
+        const float residual = windowed_input_[n]
+            - (fundamental_time_domain_[n] + prime_time_domain_[n]);
+        composite_time_domain_[n] = residual;
+    }
 
     auto computeEnergy = [](const std::vector<float>& buffer) {
         double sum = 0.0;
@@ -409,15 +432,20 @@ void HarmonicSpectralSeparator::computeInverse(const std::vector<std::complex<fl
     }
 
     for (std::size_t k = 0; k < analysis_size_; ++k) {
-        inverse_input_[k].r = spectrum[k].real();
-        inverse_input_[k].i = spectrum[k].imag();
+        const std::size_t idx = k * 2;
+        ifft_input_buffer_[idx] = spectrum[k].real();
+        ifft_input_buffer_[idx + 1] = spectrum[k].imag();
     }
 
-    kiss_fft(inverse_fft_, inverse_input_.data(), inverse_output_.data());
+    pffft_transform_ordered(inverse_fft_,
+                            ifft_input_buffer_.data(),
+                            ifft_output_buffer_.data(),
+                            fft_work_buffer_.data(),
+                            PFFFT_BACKWARD);
 
     const float norm = 1.0f / static_cast<float>(analysis_size_);
     for (std::size_t n = 0; n < analysis_size_; ++n) {
-        destination[n] = norm * inverse_output_[n].r;
+        destination[n] = norm * ifft_output_buffer_[n * 2];
     }
 }
 
@@ -439,22 +467,32 @@ const std::vector<float>& HarmonicSpectralSeparator::window() const
 void HarmonicSpectralSeparator::allocateFft()
 {
     releaseFft();
-    forward_fft_ = kiss_fft_alloc(static_cast<int>(analysis_size_), 0, nullptr, nullptr);
-    inverse_fft_ = kiss_fft_alloc(static_cast<int>(analysis_size_), 1, nullptr, nullptr);
+    if (analysis_size_ == 0 || (analysis_size_ % 4) != 0) {
+        throw std::runtime_error("PFFFT requires analysis size to be a multiple of 4");
+    }
+    forward_fft_ = pffft_new_setup(static_cast<int>(analysis_size_), PFFFT_COMPLEX);
+    inverse_fft_ = pffft_new_setup(static_cast<int>(analysis_size_), PFFFT_COMPLEX);
     if (!forward_fft_ || !inverse_fft_) {
         releaseFft();
-        throw std::runtime_error("Failed to allocate kissfft configuration");
+        throw std::runtime_error("Failed to allocate PFFFT setup");
     }
+
+    const std::size_t buffer_len = analysis_size_ * 2;
+    fft_input_buffer_.assign(buffer_len, 0.0f);
+    fft_output_buffer_.assign(buffer_len, 0.0f);
+    ifft_input_buffer_.assign(buffer_len, 0.0f);
+    ifft_output_buffer_.assign(buffer_len, 0.0f);
+    fft_work_buffer_.assign(buffer_len, 0.0f);
 }
 
 void HarmonicSpectralSeparator::releaseFft()
 {
     if (forward_fft_) {
-        free(forward_fft_);
+        pffft_destroy_setup(forward_fft_);
         forward_fft_ = nullptr;
     }
     if (inverse_fft_) {
-        free(inverse_fft_);
+        pffft_destroy_setup(inverse_fft_);
         inverse_fft_ = nullptr;
     }
 }

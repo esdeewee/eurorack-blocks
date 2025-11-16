@@ -1,8 +1,7 @@
 #include <cstdint>
 
-extern "C"
-{
-#include "../submodules/kissfft/kiss_fft.c"
-}
+#include "../third_party/pffft/pffft_common.c"
+#include "../third_party/pffft/fftpack.c"
+#include "../third_party/pffft/pffft.c"
 
 
