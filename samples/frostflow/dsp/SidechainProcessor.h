@@ -29,8 +29,8 @@ public:
 private:
     // Envelope Follower
     float envelope = 0.0f;
-    float attack = 0.01f; // coeff
-    float release = 0.001f; // coeff
+    float attack = 0.1f; // Fast attack
+    float release = 0.001f; // Slow release
 
     // Gate Detector
     bool gateState = false;

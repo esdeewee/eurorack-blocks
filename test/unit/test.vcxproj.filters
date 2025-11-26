@@ -388,6 +388,24 @@
     <Filter Include="..\..\samples\frostflow\dsp">
       <UniqueIdentifier>{50285665-AF3D-D256-A760-0628BD9220BC}</UniqueIdentifier>
     </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\samples">
+      <UniqueIdentifier>{C211F48C-152B-ADFE-63E3-597A16DC94A5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\samples\frostflow">
+      <UniqueIdentifier>{20E00C56-BED6-1169-F49C-8C0BE6271972}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="frostflow">
+      <UniqueIdentifier>{20E00C56-BED6-1169-F49C-8C0BE6271972}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="frostflow">
+      <UniqueIdentifier>{20E00C56-BED6-1169-F49C-8C0BE6271972}</UniqueIdentifier>
+    </Filter>
     <Filter Include="frostflow">
       <UniqueIdentifier>{20E00C56-BED6-1169-F49C-8C0BE6271972}</UniqueIdentifier>
     </Filter>
@@ -500,6 +518,9 @@
     <ClInclude Include="..\..\samples\frostflow\dsp\SpectralProcessor.h">
       <Filter>..\..\samples\frostflow\dsp</Filter>
     </ClInclude>
+    <ClCompile Include="..\..\samples\frostflow\FrostFlowDsp.cpp">
+      <Filter>..\..\samples\frostflow</Filter>
+    </ClCompile>
     <ClCompile Include="frostflow\TestSpectralFft.cpp">
       <Filter>frostflow</Filter>
     </ClCompile>
@@ -519,6 +540,12 @@
       <Filter>frostflow</Filter>
     </ClCompile>
     <ClCompile Include="frostflow\TestGoldenMaster.cpp">
+      <Filter>frostflow</Filter>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestLimiter.cpp">
+      <Filter>frostflow</Filter>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestIntegration.cpp">
       <Filter>frostflow</Filter>
     </ClCompile>
     <None Include="test.gyp"/>

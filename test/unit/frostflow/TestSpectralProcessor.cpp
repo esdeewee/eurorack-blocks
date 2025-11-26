@@ -1,4 +1,5 @@
 #include "../test.h"
+#include "TestHelpers.h"
 #include "../../../samples/frostflow/dsp/SpectralProcessor.h"
 #include <vector>
 
@@ -15,8 +16,9 @@ erb_TEST_CASE(FrostFlow, SpectralProcessor_Tilt) {
     proc.process(mag.data(), phase.data(), 512);
     
     // Check low bin (DC) (should be attenuated)
-    erb_TEST(mag[0] < 1.0f);
+    erb_ASSERT_MSG(mag[0] < 1.0f, "Tilt High Pass failed: DC not attenuated");
     
     // Check high bin (Nyquist) (should be boosted)
-    erb_TEST(mag[1] > 1.0f);
+    erb_ASSERT_MSG(mag[1] > 1.0f, "Tilt High Pass failed: Nyquist not boosted");
 }
+

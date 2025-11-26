@@ -7,7 +7,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{D62056F3-44CC-4CF1-AE3A-C1D7B50E22D0}</ProjectGuid>
+    <ProjectGuid>{58F32AFA-FCBB-2A4D-DCB4-242324A2FAC4}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>test</RootNamespace>
     <IgnoreWarnCompileDuplicatedFilename>true</IgnoreWarnCompileDuplicatedFilename>
@@ -119,6 +119,9 @@
     <ClCompile Include="..\..\samples\frostflow\dsp\SpectralProcessor.cpp">
       <ObjectFileName>$(IntDir)\samples\frostflow\dsp\SpectralProcessor.obj</ObjectFileName>
     </ClCompile>
+    <ClCompile Include="..\..\samples\frostflow\FrostFlowDsp.cpp">
+      <ObjectFileName>$(IntDir)\samples\frostflow\FrostFlowDsp.obj</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="frostflow\TestSpectralFft.cpp">
       <ObjectFileName>$(IntDir)\frostflow\TestSpectralFft.obj</ObjectFileName>
     </ClCompile>
@@ -139,6 +142,12 @@
     </ClCompile>
     <ClCompile Include="frostflow\TestGoldenMaster.cpp">
       <ObjectFileName>$(IntDir)\frostflow\TestGoldenMaster.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestLimiter.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestLimiter.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestIntegration.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestIntegration.obj</ObjectFileName>
     </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>

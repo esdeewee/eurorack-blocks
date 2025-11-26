@@ -32,7 +32,7 @@ bool ClockQuantizer::process(bool clockGate, Division division, float sampleRate
     }
 
     if (clockRisingEdge) {
-        if (samplesSinceLastClock > 100 + BLOCK_SIZE) { // Debounce
+        if (samplesSinceLastClock > 100) { // Debounce
             if (clockStable) {
                 clockPeriodSamples = (clockPeriodSamples * 3 + samplesSinceLastClock) / 4;
             } else {

@@ -80,6 +80,7 @@
             '../../samples/frostflow/dsp/ClockQuantizer.h',
             '../../samples/frostflow/dsp/SpectralProcessor.cpp',
             '../../samples/frostflow/dsp/SpectralProcessor.h',
+            '../../samples/frostflow/FrostFlowDsp.cpp',
 
             # FrostFlow Tests
             'frostflow/TestSpectralFft.cpp',
@@ -89,6 +90,8 @@
             'frostflow/TestClockQuantizer.cpp',
             'frostflow/TestSpectralProcessor.cpp',
             'frostflow/TestGoldenMaster.cpp',
+            'frostflow/TestLimiter.cpp',
+            'frostflow/TestIntegration.cpp',
          ],
 
          'ldflags': [

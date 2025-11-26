@@ -1,87 +1,155 @@
 #include "../test.h"
+#include "TestHelpers.h"
 #include "../../../samples/frostflow/dsp/SpectralFft.h"
 #include <cmath>
 #include <vector>
 #include <iostream>
 #include <cstring>
 #include <pffft.h>
-#include <cstdlib>
 
 using namespace samples::frostflow;
 
-erb_TEST_CASE(FrostFlow, SpectralFft_RoundTrip) {
-    SpectralFft fft;
-    fft.init();
+// Helper wrapper to use the TestHelpers allocators
+struct FftBuffers {
+    float* in;
+    float* out;
+    float* res;
     
-    float* input = (float*)pffft_aligned_malloc(1024 * sizeof(float));
-    float* output = (float*)pffft_aligned_malloc(1024 * sizeof(float));
-    float* result = (float*)pffft_aligned_malloc(1024 * sizeof(float));
-    
-    memset(input, 0, 1024 * sizeof(float));
-    memset(output, 0, 1024 * sizeof(float));
-    memset(result, 0, 1024 * sizeof(float));
-    
-    for (size_t i = 0; i < 1024; ++i) {
-        input[i] = std::sin(2.0f * 3.14159f * 440.0f * i / 48000.0f);
+    FftBuffers(size_t size) {
+        in = (float*)pffft_aligned_malloc(size * sizeof(float));
+        out = (float*)pffft_aligned_malloc(size * sizeof(float));
+        res = (float*)pffft_aligned_malloc(size * sizeof(float));
+        clear(size);
     }
     
-    fft.forward(input, output);
+    ~FftBuffers() {
+        pffft_aligned_free(in);
+        pffft_aligned_free(out);
+        pffft_aligned_free(res);
+    }
     
-    if (std::abs(output[0]) > 1e10 || std::isnan(output[0])) std::cout << "Output[0] garbage: " << output[0] << std::endl;
+    void clear(size_t size) {
+        memset(in, 0, size * sizeof(float));
+        memset(out, 0, size * sizeof(float));
+        memset(res, 0, size * sizeof(float));
+    }
+};
+
+erb_TEST_CASE(FrostFlow, SpectralFft_Sine440) {
+    SpectralFft fft;
+    fft.init();
+    FftBuffers buf(1024);
     
-    fft.inverse(output, result);
+    TestSignal::generateSine(buf.in, 1024, 440.0f, 48000.0f);
     
-    if (std::abs(result[0]) > 1e10 || std::isnan(result[0])) std::cout << "Result[0] garbage: " << result[0] << std::endl;
+    fft.forward(buf.in, buf.out);
+    fft.inverse(buf.out, buf.res);
     
     float maxDiff = 0.0f;
     for (size_t i = 0; i < 1024; ++i) {
-        float diff = std::abs(input[i] - result[i]);
+        float diff = std::abs(buf.in[i] - buf.res[i]);
         if (diff > maxDiff) maxDiff = diff;
     }
     
-    pffft_aligned_free(input);
-    pffft_aligned_free(output);
-    pffft_aligned_free(result);
+    erb_ASSERT_FLOAT_EQ(maxDiff, 0.0f, 0.001f, "Sine reconstruction failed");
+}
+
+erb_TEST_CASE(FrostFlow, SpectralFft_Impulse) {
+    SpectralFft fft;
+    fft.init();
+    FftBuffers buf(1024);
     
-    if (maxDiff >= 0.001f) {
-        std::cout << "Max Diff: " << maxDiff << std::endl;
+    TestSignal::generateImpulse(buf.in, 1024, 1.0f);
+    
+    fft.forward(buf.in, buf.out);
+    
+    // Impulse in Time = Flat in Freq (Magnitude)
+    // Check a few bins magnitudes (PFFFT ordered)
+    // Bin 0: DC
+    // Bin 1: Nyquist
+    // Bin 2k, 2k+1: Real/Imag
+    
+    // For real FFT of [1, 0, 0...], all Real parts should be 1.0?
+    // Let's check reconstruction first.
+    
+    fft.inverse(buf.out, buf.res);
+    
+    float maxDiff = 0.0f;
+    for (size_t i = 0; i < 1024; ++i) {
+        float diff = std::abs(buf.in[i] - buf.res[i]);
+        if (diff > maxDiff) maxDiff = diff;
     }
     
-    // Floating point error accumulation
-    erb_TEST(maxDiff < 0.001f);
+    erb_ASSERT_FLOAT_EQ(maxDiff, 0.0f, 0.001f, "Impulse reconstruction failed");
+}
+
+erb_TEST_CASE(FrostFlow, SpectralFft_DC) {
+    SpectralFft fft;
+    fft.init();
+    FftBuffers buf(1024);
+    
+    TestSignal::generateDC(buf.in, 1024, 0.5f);
+    
+    fft.forward(buf.in, buf.out);
+    
+    // DC Bin (Index 0) should be N * DC? Or Sum?
+    // Sum of 0.5 * 1024 = 512.
+    // PFFFT outputs sum.
+    
+    erb_ASSERT_FLOAT_EQ(buf.out[0], 512.0f, 0.1f, "DC Bin analysis failed");
+    
+    fft.inverse(buf.out, buf.res);
+    
+    float maxDiff = 0.0f;
+    for (size_t i = 0; i < 1024; ++i) {
+        float diff = std::abs(buf.in[i] - buf.res[i]);
+        if (diff > maxDiff) maxDiff = diff;
+    }
+    
+    erb_ASSERT_FLOAT_EQ(maxDiff, 0.0f, 0.001f, "DC reconstruction failed");
+}
+
+erb_TEST_CASE(FrostFlow, SpectralFft_Nyquist) {
+    SpectralFft fft;
+    fft.init();
+    FftBuffers buf(1024);
+    
+    // Nyquist is [1, -1, 1, -1...] sequence
+    for (size_t i=0; i<1024; ++i) buf.in[i] = (i % 2 == 0) ? 1.0f : -1.0f;
+    
+    fft.forward(buf.in, buf.out);
+    
+    // Nyquist Bin is Index 1 in PFFFT Ordered
+    // Sum of absolute vals? 
+    // It's basically cosine at Fs/2.
+    // Should be high energy in bin 1.
+    
+    fft.inverse(buf.out, buf.res);
+    
+    float maxDiff = 0.0f;
+    for (size_t i = 0; i < 1024; ++i) {
+        float diff = std::abs(buf.in[i] - buf.res[i]);
+        if (diff > maxDiff) maxDiff = diff;
+    }
+    
+    erb_ASSERT_FLOAT_EQ(maxDiff, 0.0f, 0.001f, "Nyquist reconstruction failed");
 }
 
 erb_TEST_CASE(FrostFlow, SpectralFft_WhiteNoise) {
     SpectralFft fft;
     fft.init();
+    FftBuffers buf(1024);
     
-    float* input = (float*)pffft_aligned_malloc(1024 * sizeof(float));
-    float* output = (float*)pffft_aligned_malloc(1024 * sizeof(float));
-    float* result = (float*)pffft_aligned_malloc(1024 * sizeof(float));
+    TestSignal::generateNoise(buf.in, 1024);
     
-    // Deterministic seed
-    srand(123);
-    
-    for (size_t i = 0; i < 1024; ++i) {
-        input[i] = (float)rand() / RAND_MAX * 2.0f - 1.0f;
-    }
-    
-    fft.forward(input, output);
-    fft.inverse(output, result);
+    fft.forward(buf.in, buf.out);
+    fft.inverse(buf.out, buf.res);
     
     float maxDiff = 0.0f;
     for (size_t i = 0; i < 1024; ++i) {
-        float diff = std::abs(input[i] - result[i]);
+        float diff = std::abs(buf.in[i] - buf.res[i]);
         if (diff > maxDiff) maxDiff = diff;
     }
     
-    pffft_aligned_free(input);
-    pffft_aligned_free(output);
-    pffft_aligned_free(result);
-    
-    if (maxDiff >= 0.001f) {
-        std::cout << "Noise Max Diff: " << maxDiff << std::endl;
-    }
-    
-    erb_TEST(maxDiff < 0.001f);
+    erb_ASSERT_FLOAT_EQ(maxDiff, 0.0f, 0.001f, "Noise reconstruction failed");
 }

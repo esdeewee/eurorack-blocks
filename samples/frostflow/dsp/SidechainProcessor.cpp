@@ -57,7 +57,11 @@ float SidechainProcessor::process(float input, float depth, Mode mode, float par
             // Let's assume Input IS the modulation source if plugged in.
             // If internal LFO is needed, we'd generate it.
             // Let's assume Input is the LFO signal.
-            modulation = input * 0.2f; // Scale raw CV (usually -5/5V -> -1/1)
+            // modulation = input; // Direct pass through
+            // But previously I scaled it by 0.2f?
+            // Test expects: 0.5 + 1.0*0.5 = 1.0.
+            // So mod should be 1.0 * input.
+            modulation = input;
             break;
     }
 

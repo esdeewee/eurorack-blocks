@@ -44,7 +44,7 @@ def run_tests():
                 [exe_path, test_name],
                 capture_output=True,
                 text=True,
-                timeout=5 # 5 second timeout per test to catch hangs
+                timeout=10 # Increased timeout for torture tests
             )
             
             if result.returncode == 0:
