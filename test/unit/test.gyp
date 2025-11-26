@@ -92,6 +92,7 @@
             'frostflow/TestGoldenMaster.cpp',
             'frostflow/TestLimiter.cpp',
             'frostflow/TestIntegration.cpp',
+            'frostflow/TestExtremeStress.cpp',
          ],
 
          'ldflags': [
