@@ -1,0 +1,47 @@
+// FrostFlow.erbb
+
+module FrostFlow {
+
+   // Put more sources in this list as you add classes
+   sources {
+      file "FrostFlow.cpp"
+      file "FrostFlow.h"
+      file "FrostFlow.erbui"
+      
+      file "FrostFlowDsp.cpp"
+      file "FrostFlowDsp.h"
+      
+      file "dsp/SpectralFft.cpp"
+      file "dsp/SpectralFft.h"
+      
+      file "dsp/SpectralFreeze.cpp"
+      file "dsp/SpectralFreeze.h"
+      
+      file "dsp/BlendEngine.cpp"
+      file "dsp/BlendEngine.h"
+      
+      file "dsp/SidechainProcessor.cpp"
+      file "dsp/SidechainProcessor.h"
+      
+      file "dsp/ClockQuantizer.cpp"
+      file "dsp/ClockQuantizer.h"
+      
+      file "dsp/SpectralProcessor.cpp"
+      file "dsp/SpectralProcessor.h"
+      
+      file "dsp/RngWrapper.h"
+      file "dsp/Limiter.h"
+   }
+
+   // Put more resources in this list as you add data like audio samples, etc.
+   resources {
+      // Example of an audio sample "sample.wav" accessible in 'process' as 'data.foo':
+      // data foo AudioSample { file "sample.wav" }
+   }
+
+   // !!! IMPORTANT !!!
+   // Every time you change this file, you need to re-run 'erbb configure'
+
+   // erbb grammar reference is here:
+   // https://eurorack-blocks.readthedocs.io/en/latest/erbb/grammar.html
+}

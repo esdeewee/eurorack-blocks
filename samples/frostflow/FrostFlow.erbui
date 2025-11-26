@@ -1,0 +1,217 @@
+module FrostFlow {
+   board kivu12
+   width 12hp
+   material aluminum
+   header { label "FROSTFLOW" }
+
+   /* Top Section - Knobs */
+   
+   control dry_wet Pot {
+      position 2hp, 25mm
+      style rogan.3ps
+      label "D/W"
+      pin P1
+   }
+
+   control ab_morph Pot {
+      position 10hp, 25mm
+      style rogan.3ps
+      label "A/B"
+      pin P2
+   }
+
+   control layer_a_level Pot {
+      position 2hp, 40mm
+      style rogan.1ps
+      label "A LVL"
+      pin P3
+   }
+
+   control layer_b_level Pot {
+      position 10hp, 40mm
+      style rogan.1ps
+      label "B LVL"
+      pin P4
+   }
+
+   control layer_a_tilt Pot {
+      position 2hp, 52mm
+      style rogan.1ps
+      label "A TILT"
+      pin P5
+   }
+
+   control layer_b_tilt Pot {
+      position 10hp, 52mm
+      style rogan.1ps
+      label "B TILT"
+      pin P6
+   }
+
+   control layer_a_decay Pot {
+      position 2hp, 64mm
+      style rogan.1ps
+      label "A DEC"
+      pin P7
+   }
+
+   control layer_b_decay Pot {
+      position 10hp, 64mm
+      style rogan.1ps
+      label "B DEC"
+      pin P8
+   }
+
+   control sc_depth Pot {
+      position 6hp, 40mm
+      style rogan.1ps
+      label "SC AMT"
+      pin P9
+   }
+
+   /* Middle Section - Switches & Buttons */
+
+   control sc_mode Switch {
+      position 4hp, 75mm
+      style on_off_on
+      label "SC MODE"
+      pins B1, B2
+   }
+
+   control div_mode Switch {
+      position 8hp, 75mm
+      style on_off_on
+      label "DIV"
+      pins B3, B4
+   }
+
+   control mirror_mode Switch {
+      position 6hp, 85mm
+      style on_on
+      label "MIRROR"
+      pin B5
+   }
+
+   control freeze_a Button {
+      position 4hp, 85mm
+      style ck, d6r, black
+      label "FREEZE A"
+      pin B6
+   }
+
+   control freeze_b Button {
+      position 8hp, 85mm
+      style ck, d6r, black
+      label "FREEZE B"
+      pin B7
+   }
+   
+   control led_freeze_a Led {
+      position 4hp, 82mm
+      style red
+      pin L1
+   }
+   
+   control led_freeze_b Led {
+      position 8hp, 82mm
+      style red
+      pin L2
+   }
+
+   /* Bottom Section - Jacks */
+
+   /* Row 1 */
+   control in_l AudioIn {
+      position 2hp, 95mm
+      style knurled
+      label "IN L"
+      pin AI1
+   }
+
+   control in_r AudioIn {
+      position 4.66hp, 95mm
+      style knurled
+      label "IN R"
+      pin AI2
+   }
+
+   control out_l AudioOut {
+      position 7.33hp, 95mm
+      style knurled
+      label "OUT L"
+      pin AO1
+   }
+
+   control out_r AudioOut {
+      position 10hp, 95mm
+      style knurled
+      label "OUT R"
+      pin AO2
+   }
+
+   /* Row 2 */
+   control freeze_a_gate GateIn {
+      position 2hp, 105mm
+      style knurled
+      label "GATE A"
+      pin B8
+   }
+
+   control freeze_b_gate GateIn {
+      position 4.66hp, 105mm
+      style knurled
+      label "GATE B"
+      pin B9
+   }
+
+   control sc_in CvIn {
+      position 7.33hp, 105mm
+      style knurled
+      label "SC IN"
+      pin CI5
+   }
+   
+   control clock_in GateIn {
+      position 10hp, 105mm
+      style knurled
+      label "CLK"
+      pin B10
+   }
+
+   /* Row 3 */
+   control dry_wet_cv CvIn {
+      position 2hp, 115mm
+      style knurled
+      label "D/W CV"
+      pin CI1
+   }
+
+   control ab_morph_cv CvIn {
+      position 4.66hp, 115mm
+      style knurled
+      label "A/B CV"
+      pin CI2
+   }
+
+   control layer_a_level_cv CvIn {
+      position 7.33hp, 115mm
+      style knurled
+      label "A LVL"
+      pin CI3
+   }
+
+   control layer_b_level_cv CvIn {
+      position 10hp, 115mm
+      style knurled
+      label "B LVL"
+      pin CI4
+   }
+
+   /* Row 4 */
+   control mirror_out CvOut {
+      position 6hp, 125mm
+      style knurled
+      label "MIRROR"
+      pin CO1
+   }
+}

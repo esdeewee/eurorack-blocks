@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Default|Win32">
+      <Configuration>Default</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{D62056F3-44CC-4CF1-AE3A-C1D7B50E22D0}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>test</RootNamespace>
+    <IgnoreWarnCompileDuplicatedFilename>true</IgnoreWarnCompileDuplicatedFilename>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props"/>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Label="Locals">
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props"/>
+  <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props"/>
+  <ImportGroup Label="ExtensionSettings"/>
+  <ImportGroup Label="PropertySheets">
+    <Import Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props"/>
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros"/>
+  <PropertyGroup>
+    <ExecutablePath>$(ExecutablePath);$(MSBuildProjectDirectory)\.\bin\;$(MSBuildProjectDirectory)\.\bin\</ExecutablePath>
+    <IntDir>$(Configuration)\obj\$(ProjectName)\</IntDir>
+    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
+    <TargetName>$(ProjectName)</TargetName>
+    <TargetPath>$(OutDir)\$(ProjectName)$(TargetExt)</TargetPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Default|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.;..\..\include;..\..\submodules\vcv-rack-sdk\dep\include;..\..\samples\frostflow;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions>erb_TARGET_UNIT_TEST;_USE_MATH_DEFINES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies></AdditionalDependencies>
+      <OutputFile>$(OutDir)$(ProjectName)$(TargetExt)</OutputFile>
+    </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>.;..\..\include;..\..\submodules\vcv-rack-sdk\dep\include;..\..\samples\frostflow;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>erb_TARGET_UNIT_TEST;_USE_MATH_DEFINES;%(PreprocessorDefinitions);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <None Include="..\..\include\erb\SdramObject.hpp"/>
+    <None Include="..\..\include\erb\SdramPtr.hpp"/>
+    <None Include="..\..\include\erb\detail\Animation.hpp"/>
+    <None Include="..\..\include\erb\detail\MonotonicMemoryPool.hpp"/>
+    <None Include="..\..\include\erb\detail\Sdram.hpp"/>
+    <None Include="test.gyp"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="test.h"/>
+    <ClInclude Include="..\..\include\erb\SdramObject.h"/>
+    <ClInclude Include="..\..\include\erb\SdramPtr.h"/>
+    <ClInclude Include="..\..\include\erb\detail\Animation.h"/>
+    <ClInclude Include="..\..\include\erb\detail\Debounce.h"/>
+    <ClInclude Include="..\..\include\erb\detail\MonotonicMemoryPool.h"/>
+    <ClInclude Include="..\..\include\erb\detail\Sdram.h"/>
+    <ClInclude Include="TestAnimation.h"/>
+    <ClInclude Include="TestDebounce.h"/>
+    <ClInclude Include="TestSdramPtr.h"/>
+    <ClInclude Include="..\..\samples\frostflow\dsp\SpectralFft.h"/>
+    <ClInclude Include="..\..\samples\frostflow\dsp\SpectralFreeze.h"/>
+    <ClInclude Include="..\..\samples\frostflow\dsp\BlendEngine.h"/>
+    <ClInclude Include="..\..\samples\frostflow\dsp\SidechainProcessor.h"/>
+    <ClInclude Include="..\..\samples\frostflow\dsp\ClockQuantizer.h"/>
+    <ClInclude Include="..\..\samples\frostflow\dsp\SpectralProcessor.h"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <ObjectFileName>$(IntDir)\main.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\src\detail\Animation.cpp">
+      <ObjectFileName>$(IntDir)\src\detail\Animation.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\src\detail\Debounce.cpp">
+      <ObjectFileName>$(IntDir)\src\detail\Debounce.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\src\detail\Sdram.cpp">
+      <ObjectFileName>$(IntDir)\src\detail\Sdram.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="TestAnimation.cpp">
+      <ObjectFileName>$(IntDir)\TestAnimation.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="TestDebounce.cpp">
+      <ObjectFileName>$(IntDir)\TestDebounce.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="TestSdramPtr.cpp">
+      <ObjectFileName>$(IntDir)\TestSdramPtr.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\samples\frostflow\dsp\thirdparty\pffft.c">
+      <ObjectFileName>$(IntDir)\samples\frostflow\dsp\thirdparty\pffft.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\samples\frostflow\dsp\SpectralFft.cpp">
+      <ObjectFileName>$(IntDir)\samples\frostflow\dsp\SpectralFft.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\samples\frostflow\dsp\SpectralFreeze.cpp">
+      <ObjectFileName>$(IntDir)\samples\frostflow\dsp\SpectralFreeze.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\samples\frostflow\dsp\BlendEngine.cpp">
+      <ObjectFileName>$(IntDir)\samples\frostflow\dsp\BlendEngine.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\samples\frostflow\dsp\SidechainProcessor.cpp">
+      <ObjectFileName>$(IntDir)\samples\frostflow\dsp\SidechainProcessor.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\samples\frostflow\dsp\ClockQuantizer.cpp">
+      <ObjectFileName>$(IntDir)\samples\frostflow\dsp\ClockQuantizer.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\samples\frostflow\dsp\SpectralProcessor.cpp">
+      <ObjectFileName>$(IntDir)\samples\frostflow\dsp\SpectralProcessor.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestSpectralFft.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestSpectralFft.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestSpectralFreeze.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestSpectralFreeze.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestBlendEngine.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestBlendEngine.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestSidechainProcessor.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestSidechainProcessor.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestClockQuantizer.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestClockQuantizer.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestSpectralProcessor.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestSpectralProcessor.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="frostflow\TestGoldenMaster.cpp">
+      <ObjectFileName>$(IntDir)\frostflow\TestGoldenMaster.obj</ObjectFileName>
+    </ClCompile>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
+  <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets"/>
+  <ImportGroup Label="ExtensionTargets"/>
+</Project>

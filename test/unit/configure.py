@@ -11,6 +11,7 @@
 from __future__ import print_function
 import fileinput
 import os
+os.environ['GYP_MSVS_VERSION'] = '2022'
 import platform
 import sys
 import subprocess
@@ -41,6 +42,7 @@ def configure_native ():
    gyp_args = [
       '--depth=.',
       '--generator-output=%s' % os.path.join (PATH_THIS, 'artifacts'),
+      '-G', 'msvs_version=2022',
    ]
 
    gyp.main (gyp_args + ['test.gyp'])
@@ -77,6 +79,7 @@ def configure_ninja ():
    gyp_args = [
       '--depth=.',
       '--generator-output=%s' % os.path.join (PATH_THIS, 'artifacts'),
+      '-G', 'msvs_version=2022',
    ]
 
    gyp_args += ['--format', 'ninja']
@@ -94,7 +97,7 @@ Name : configure
 def configure ():
    os.chdir (PATH_THIS)
    configure_native ()
-   configure_ninja ()
+   # configure_ninja ()
 
 
 

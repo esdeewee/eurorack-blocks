@@ -29,11 +29,14 @@
 
          'defines': [
             'erb_TARGET_UNIT_TEST',
+            '_USE_MATH_DEFINES',
          ],
 
          'include_dirs': [
             '.',
             '../../include',
+            '../../submodules/vcv-rack-sdk/dep/include',
+            '../../samples/frostflow',
          ],
 
          'sources': [
@@ -62,6 +65,30 @@
             'TestDebounce.h',
             'TestSdramPtr.cpp',
             'TestSdramPtr.h',
+            
+            # FrostFlow DSP Sources
+            '../../samples/frostflow/dsp/thirdparty/pffft.c',
+            '../../samples/frostflow/dsp/SpectralFft.cpp',
+            '../../samples/frostflow/dsp/SpectralFft.h',
+            '../../samples/frostflow/dsp/SpectralFreeze.cpp',
+            '../../samples/frostflow/dsp/SpectralFreeze.h',
+            '../../samples/frostflow/dsp/BlendEngine.cpp',
+            '../../samples/frostflow/dsp/BlendEngine.h',
+            '../../samples/frostflow/dsp/SidechainProcessor.cpp',
+            '../../samples/frostflow/dsp/SidechainProcessor.h',
+            '../../samples/frostflow/dsp/ClockQuantizer.cpp',
+            '../../samples/frostflow/dsp/ClockQuantizer.h',
+            '../../samples/frostflow/dsp/SpectralProcessor.cpp',
+            '../../samples/frostflow/dsp/SpectralProcessor.h',
+
+            # FrostFlow Tests
+            'frostflow/TestSpectralFft.cpp',
+            'frostflow/TestSpectralFreeze.cpp',
+            'frostflow/TestBlendEngine.cpp',
+            'frostflow/TestSidechainProcessor.cpp',
+            'frostflow/TestClockQuantizer.cpp',
+            'frostflow/TestSpectralProcessor.cpp',
+            'frostflow/TestGoldenMaster.cpp',
          ],
 
          'ldflags': [
